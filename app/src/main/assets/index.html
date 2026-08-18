@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#080813">
+  <title>Wam Bam Thank U Mam</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+  <section id="homeScreen" class="screen active">
+    <div class="night-city"></div>
+    <div class="halftone top-dots"></div>
+
+    <div class="home-topbar">
+      <button class="avatar-button" data-action="profile" aria-label="Profile">
+        <span class="avatar-face">💋</span><span class="level-star">25</span>
+      </button>
+      <button class="pill heart-pill" data-action="lives"><span class="heart-icon">♥</span><b id="homeLives">5</b><span>FULL</span><i>+</i></button>
+      <button class="pill coin-pill" data-action="coins"><span class="coin">$</span><b id="homeCoins">12,450</b><i>+</i></button>
+      <button class="vip-button" data-action="vip">♛ <b>VIP</b></button>
+    </div>
+
+    <div class="home-logo burst-logo" aria-label="Wam Bam Thank U Mam">
+      <span class="home-wam">WAM</span>
+      <span class="home-bam">BAM</span>
+      <span class="home-thank">THANK U MAM</span>
+    </div>
+
+    <div class="neon-sign left-neon"><small>The</small><b>BAM</b><span>LOUNGE</span><i>➜</i></div>
+    <div class="neon-sign right-neon"><b>Good<br>Vibes</b><span>Big<br>Combos!</span></div>
+
+    <div class="pinup home-pinup" aria-hidden="true">
+      <div class="bow"><i></i><i></i></div>
+      <div class="hair back"></div>
+      <div class="head"><span class="eye left"></span><span class="eye right wink"></span><span class="mouth"></span></div>
+      <div class="hair front"></div>
+      <div class="earring left"></div><div class="earring right"></div>
+      <div class="body"></div>
+      <div class="mic">🎙️</div>
+    </div>
+
+    <div class="jukebox" aria-hidden="true"><div class="jukebox-glow"></div><b>♫</b></div>
+    <div class="milkshake" aria-hidden="true">🍒<span>🥤</span></div>
+
+    <button id="playButton" class="play-button">★ <b>PLAY</b> ★</button>
+
+    <nav class="home-nav">
+      <button data-action="events"><span>🗓️</span><b>EVENTS</b><em>!</em></button>
+      <button data-action="shop"><span>🛍️</span><b>SHOP</b></button>
+      <button data-action="challenges"><span>🏆</span><b>CHALLENGES</b></button>
+      <button data-action="settings"><span>⚙️</span><b>SETTINGS</b></button>
+    </nav>
+
+    <button class="reward-banner" data-action="events"><strong>BOOM!</strong><span>PLAY EVENTS<br><b>WIN BIG REWARDS!</b></span><i>🪙 🎁 💣</i></button>
+  </section>
+
+  <section id="gameScreen" class="screen">
+    <div class="game-city"></div>
+    <div class="halftone game-dots"></div>
+
+    <div class="game-hud">
+      <div class="moves-card"><small>MOVES</small><b id="movesValue">16</b><i>★</i></div>
+      <button class="game-coins" data-action="coins"><span class="coin">$</span><b id="gameCoins">12,450</b><i>+</i></button>
+      <button class="game-lives" data-action="lives"><span>♥</span><b id="gameLives">5</b><small>FULL</small></button>
+    </div>
+
+    <div class="game-logo burst-logo">
+      <span class="game-wam">WAM</span>
+      <span class="game-bam">BAM</span>
+      <span class="game-thank">THANK U</span>
+      <span class="game-mam">MAM</span>
+    </div>
+
+    <aside class="target-card">
+      <h3>TARGET</h3>
+      <div><span class="target-icon cherry-mini">●●</span><b id="targetCherries">30</b></div>
+      <div><span class="target-icon diamond-mini">◆</span><b id="targetDiamond">18</b></div>
+      <div><span class="target-icon star-mini">★</span><b id="targetStar">20</b></div>
+    </aside>
+
+    <div class="pinup game-pinup" aria-hidden="true">
+      <div class="bow"><i></i><i></i></div><div class="hair back"></div>
+      <div class="head"><span class="eye left"></span><span class="eye right wink"></span><span class="mouth"></span></div>
+      <div class="hair front"></div><div class="earring left"></div><div class="earring right"></div><div class="hand-kiss">♡♡</div>
+    </div>
+
+    <div class="lounge-label">LIPSTICK<br><b>Lounge</b></div>
+    <div class="bam-neon">BAM!</div>
+
+    <div id="boardFrame" class="board-frame"><div id="board" class="board" aria-label="Match three board"></div></div>
+    <div id="bamFlash" class="bam-flash">WAM!</div>
+
+    <div class="boosters">
+      <button class="booster" data-booster="rocket"><span class="booster-art">🚀</span><b>ROCKET</b><i id="rocketCount">3</i></button>
+      <button class="booster" data-booster="hammer"><span class="booster-art">🔨</span><b>HAMMER</b><i id="hammerCount">3</i></button>
+      <button class="booster" data-booster="disco"><span class="booster-art disco">◉</span><b>DISCO BALL</b><i id="discoCount">3</i></button>
+      <button class="booster" data-booster="swap"><span class="booster-art">↔</span><b>SWAP</b><i id="swapCount">3</i></button>
+      <button id="pauseButton" class="pause-button">Ⅱ</button>
+    </div>
+  </section>
+
+  <div id="toast" class="toast"></div>
+  <div id="modal" class="modal" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <h2 id="modalTitle">WAM!</h2>
+      <p id="modalText"></p>
+      <button id="modalPrimary">OK</button>
+      <button id="modalClose" class="secondary">CLOSE</button>
+    </div>
+  </div>
+</div>
+<script src="game.js"></script>
+</body>
+</html>
