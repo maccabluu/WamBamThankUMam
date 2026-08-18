@@ -51,13 +51,13 @@ jobs:
           projectPath: UnityProject
           unityVersion: 6000.3.17f1
           targetPlatform: Android
-          buildName: WamBamThankUMam-Alpha-0.5
+          buildMethod: WamBamThankUMam.Editor.WamBamAndroidBuilder.BuildAndroidApk
           allowDirtyBuild: true
 
       - name: Upload Unity APK
         uses: actions/upload-artifact@v4
         with:
           name: WamBamThankUMam-Unity-Alpha-0.5-APK
-          path: build/Android
+          path: UnityProject/Builds/Android/*.apk
           if-no-files-found: error
           retention-days: 30
