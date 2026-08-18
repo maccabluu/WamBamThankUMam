@@ -33,6 +33,20 @@ namespace WamBamThankUMam.Editor
 
             Debug.Log("Wam Bam APK built: " + outPath);
         }
+
+        public static void BuildAndroidFromCommandLine()
+        {
+            try
+            {
+                BuildAndroidApk();
+                EditorApplication.Exit(0);
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogException(ex);
+                EditorApplication.Exit(1);
+            }
+        }
     }
 }
 #endif
