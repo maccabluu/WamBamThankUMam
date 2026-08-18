@@ -15,7 +15,7 @@ public class MainActivity extends Activity {
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         hideSystemUi();
-        setContentView(new WamBamGameView(this));
+        setContentView(new ComicGameModeView(this));
     }
 
     private void hideSystemUi() {
