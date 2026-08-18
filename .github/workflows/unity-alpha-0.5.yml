@@ -1,0 +1,46 @@
+name: Build Unity Alpha 0.5 APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      unity_ref:
+        description: Unity source branch
+        required: true
+        default: agent/unity-alpha-0.5
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout Unity source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.unity_ref }}
+
+      - name: Build Android APK with Unity
+        uses: game-ci/unity-builder@v5
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: UnityProject
+          unityVersion: auto
+          targetPlatform: Android
+          androidExportType: androidPackage
+          buildMethod: WamBamThankUMam.Editor.WamBamAndroidBuilder.BuildAndroidFromCommandLine
+          manualExit: true
+          allowDirtyBuild: true
+
+      - name: Upload Wam Bam APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: WamBamThankUMam-Unity-Alpha-0.5-APK
+          path: UnityProject/Builds/Android/WamBamThankUMam-Alpha-0.5.apk
+          if-no-files-found: error
+          retention-days: 30
