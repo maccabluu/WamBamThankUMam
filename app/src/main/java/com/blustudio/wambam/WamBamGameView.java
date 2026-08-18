@@ -5,12 +5,16 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.RadialGradient;
 import android.graphics.RectF;
+import android.graphics.Shader;
 import android.media.AudioManager;
 import android.media.ToneGenerator;
 import android.os.Build;
+import android.os.SystemClock;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
@@ -51,8 +55,9 @@ public class WamBamGameView extends View {
             Color.rgb(238, 60, 94)
     };
 
+    private final long animationStart = SystemClock.uptimeMillis();
+
     private Bitmap homeBackground;
-    private Bitmap gameBackground;
     private int screen = HOME;
     private int movesLeft = START_MOVES;
     private int cleared = 0;
@@ -89,7 +94,6 @@ public class WamBamGameView extends View {
         setKeepScreenOn(true);
         setFocusable(true);
         homeBackground = readRawBitmap(R.raw.home_bg);
-        gameBackground = readRawBitmap(R.raw.game_bg);
         generateBoard();
     }
 
@@ -110,11 +114,24 @@ public class WamBamGameView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        if (screen == HOME) drawHome(canvas);
-        else drawGame(canvas);
+
+        if (screen == HOME) {
+            drawHome(canvas);
+        } else {
+            drawGame(canvas);
+        }
+
         if (modal) drawModal(canvas);
+
         if (!toast.isEmpty() && System.currentTimeMillis() < toastUntil) {
             drawToast(canvas);
+        } else if (!toast.isEmpty()) {
+            toast = "";
+        }
+
+        if (screen == GAME && !modal) {
+            postInvalidateOnAnimation();
+        } else if (!toast.isEmpty()) {
             postInvalidateDelayed(60);
         }
     }
@@ -124,9 +141,7 @@ public class WamBamGameView extends View {
     }
 
     private void drawGame(Canvas canvas) {
-        drawBackground(canvas, gameBackground);
-        paint.setColor(Color.argb(155, 0, 0, 0));
-        canvas.drawRect(0, 0, getWidth(), getHeight(), paint);
+        drawSharpGameBackground(canvas);
         drawHud(canvas);
         drawBoard(canvas);
         drawBoosters(canvas);
@@ -137,6 +152,101 @@ public class WamBamGameView extends View {
         if (bitmap != null) {
             canvas.drawBitmap(bitmap, null, new RectF(0, 0, getWidth(), getHeight()), paint);
         }
+    }
+
+    private void drawSharpGameBackground(Canvas canvas) {
+        float w = getWidth();
+        float h = getHeight();
+        float t = animationSeconds();
+
+        LinearGradient base = new LinearGradient(
+                0, 0, 0, h,
+                new int[]{
+                        Color.rgb(12, 11, 28),
+                        Color.rgb(48, 16, 62),
+                        Color.rgb(20, 91, 110),
+                        Color.rgb(10, 13, 24)
+                },
+                new float[]{0f, .32f, .70f, 1f},
+                Shader.TileMode.CLAMP
+        );
+        paint.setShader(base);
+        canvas.drawRect(0, 0, w, h, paint);
+        paint.setShader(null);
+
+        drawSpotlight(canvas, w * .10f, h * .15f, w * .62f, Color.argb(100, 255, 42, 116));
+        drawSpotlight(canvas, w * .91f, h * .23f, w * .58f, Color.argb(90, 25, 221, 225));
+        drawSpotlight(canvas, w * .52f, h * .84f, w * .72f, Color.argb(70, 255, 190, 25));
+
+        paint.setStrokeWidth(Math.max(3f, w * .005f));
+        for (int i = 0; i < 6; i++) {
+            float y = h * (.10f + i * .105f);
+            float drift = (float)Math.sin(t * .35f + i) * w * .015f;
+            paint.setColor(i % 2 == 0
+                    ? Color.argb(65, 255, 48, 124)
+                    : Color.argb(60, 40, 225, 230));
+            canvas.drawLine(-w * .05f + drift, y, w * 1.05f + drift, y - h * .10f, paint);
+        }
+
+        float dot = Math.max(2f, w * .0042f);
+        for (int row = 0; row < 11; row++) {
+            for (int col = 0; col < 9; col++) {
+                float x = w * (.06f + col * .115f);
+                float y = h * (.25f + row * .055f);
+                if (((row + col) & 1) == 0) {
+                    paint.setColor(Color.argb(26, 255, 255, 255));
+                    canvas.drawCircle(x, y, dot, paint);
+                }
+            }
+        }
+
+        float skylineBase = h * .825f;
+        for (int i = 0; i < 13; i++) {
+            float left = i * w / 13f;
+            float right = left + w / 15f;
+            float buildingH = h * (.045f + (i % 5) * .012f);
+            paint.setColor(Color.rgb(10, 14, 25));
+            canvas.drawRect(left, skylineBase - buildingH, right, skylineBase, paint);
+
+            paint.setColor(Color.argb(115, 255, 198, 41));
+            for (int win = 0; win < 3; win++) {
+                float wy = skylineBase - buildingH + h * .012f + win * h * .014f;
+                canvas.drawRect(left + w * .008f, wy, left + w * .015f, wy + h * .006f, paint);
+            }
+        }
+
+        drawNeonSign(canvas, "WAM!", w * .17f, h * .205f, w * .12f, Color.rgb(255, 42, 116));
+        drawNeonSign(canvas, "BAM!", w * .83f, h * .205f, w * .10f, Color.rgb(34, 220, 225));
+    }
+
+    private void drawSpotlight(Canvas canvas, float cx, float cy, float radius, int colour) {
+        RadialGradient glow = new RadialGradient(
+                cx, cy, radius,
+                new int[]{colour, Color.TRANSPARENT},
+                null,
+                Shader.TileMode.CLAMP
+        );
+        paint.setShader(glow);
+        canvas.drawCircle(cx, cy, radius, paint);
+        paint.setShader(null);
+    }
+
+    private void drawNeonSign(Canvas canvas, String value, float cx, float cy, float size, int colour) {
+        text.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        text.setTextAlign(Paint.Align.CENTER);
+        text.setTextSize(size);
+        text.setStyle(Paint.Style.STROKE);
+        text.setStrokeWidth(Math.max(7f, size * .10f));
+        text.setColor(Color.argb(80, Color.red(colour), Color.green(colour), Color.blue(colour)));
+        canvas.drawText(value, cx, cy, text);
+
+        text.setStrokeWidth(Math.max(3f, size * .045f));
+        text.setColor(colour);
+        canvas.drawText(value, cx, cy, text);
+
+        text.setStyle(Paint.Style.FILL);
+        text.setColor(Color.WHITE);
+        canvas.drawText(value, cx, cy, text);
     }
 
     private void drawHud(Canvas canvas) {
@@ -163,11 +273,20 @@ public class WamBamGameView extends View {
 
     private void drawBoard(Canvas canvas) {
         RectF outer = boardRect();
-        paint.setColor(Color.rgb(255, 198, 41));
+
+        LinearGradient frame = new LinearGradient(
+                outer.left, outer.top, outer.right, outer.bottom,
+                new int[]{Color.rgb(255, 229, 89), Color.rgb(255, 132, 20), Color.rgb(255, 225, 70)},
+                null,
+                Shader.TileMode.CLAMP
+        );
+        paint.setShader(frame);
         canvas.drawRoundRect(outer, 24, 24, paint);
+        paint.setShader(null);
+
         float pad = outer.width() * .018f;
         RectF inner = new RectF(outer.left + pad, outer.top + pad, outer.right - pad, outer.bottom - pad);
-        paint.setColor(Color.rgb(11, 12, 17));
+        paint.setColor(Color.argb(244, 11, 12, 17));
         canvas.drawRoundRect(inner, 18, 18, paint);
 
         float gap = inner.width() * .007f;
@@ -175,11 +294,15 @@ public class WamBamGameView extends View {
         for (int y = 0; y < ROWS; y++) {
             for (int x = 0; x < COLS; x++) {
                 float l = inner.left + x * (cell + gap);
-                float t = inner.top + y * (cell + gap);
-                RectF r = new RectF(l, t, l + cell, t + cell);
-                paint.setColor(Color.rgb(28, 29, 36));
+                float top = inner.top + y * (cell + gap);
+                RectF r = new RectF(l, top, l + cell, top + cell);
+
+                paint.setColor(((x + y) & 1) == 0
+                        ? Color.rgb(31, 32, 40)
+                        : Color.rgb(24, 25, 33));
                 canvas.drawRoundRect(r, cell * .12f, cell * .12f, paint);
-                drawPiece(canvas, board[x][y], r);
+
+                drawPiece(canvas, board[x][y], r, x, y);
 
                 if ((x == selectedX && y == selectedY) ||
                         (x == hintAX && y == hintAY) || (x == hintBX && y == hintBY)) {
@@ -193,45 +316,242 @@ public class WamBamGameView extends View {
         }
     }
 
-    private void drawPiece(Canvas canvas, int kind, RectF r) {
-        float cx = r.centerX();
-        float cy = r.centerY();
-        float s = r.width();
-        paint.setColor(pieceColours[kind]);
+    private void drawPiece(Canvas canvas, int kind, RectF r, int gridX, int gridY) {
+        if (kind < 0 || kind >= 6) return;
 
-        if (kind == 0) {
-            drawCentered(canvas, "♥", cx, cy, s * .72f, pieceColours[kind]);
-        } else if (kind == 1) {
-            paint.setColor(Color.rgb(235, 192, 52));
-            canvas.drawRoundRect(new RectF(cx - s*.12f, cy - s*.25f, cx + s*.12f, cy + s*.28f), s*.05f, s*.05f, paint);
-            paint.setColor(pieceColours[kind]);
-            canvas.drawRoundRect(new RectF(cx - s*.10f, cy - s*.39f, cx + s*.10f, cy - s*.12f), s*.08f, s*.08f, paint);
-        } else if (kind == 2) {
-            paint.setStrokeWidth(s * .04f);
-            paint.setColor(Color.rgb(70, 175, 80));
-            canvas.drawLine(cx, cy - s*.10f, cx - s*.12f, cy - s*.32f, paint);
-            canvas.drawLine(cx, cy - s*.10f, cx + s*.12f, cy - s*.32f, paint);
-            paint.setColor(pieceColours[kind]);
-            canvas.drawCircle(cx - s*.15f, cy + s*.10f, s*.17f, paint);
-            canvas.drawCircle(cx + s*.15f, cy + s*.10f, s*.17f, paint);
-        } else if (kind == 3) {
-            Path p = new Path();
-            p.moveTo(cx, cy - s*.34f);
-            p.lineTo(cx + s*.30f, cy);
-            p.lineTo(cx, cy + s*.34f);
-            p.lineTo(cx - s*.30f, cy);
-            p.close();
-            canvas.drawPath(p, paint);
-        } else if (kind == 4) {
-            drawCentered(canvas, "★", cx, cy, s * .66f, pieceColours[kind]);
-        } else {
-            paint.setStrokeWidth(s * .12f);
-            paint.setStrokeCap(Paint.Cap.ROUND);
-            canvas.drawLine(cx - s*.22f, cy - s*.20f, cx - s*.02f, cy + s*.22f, paint);
-            canvas.drawLine(cx - s*.02f, cy + s*.22f, cx + s*.24f, cy + s*.22f, paint);
-            canvas.drawLine(cx + s*.18f, cy + s*.22f, cx + s*.18f, cy + s*.34f, paint);
-            paint.setStrokeCap(Paint.Cap.BUTT);
+        float s = r.width();
+        float phase = animationSeconds() * 2.05f + gridX * .63f + gridY * .41f + kind * .48f;
+        float bob = (float)Math.sin(phase) * s * .035f;
+        float pulse = 1f + (float)Math.sin(phase * 1.17f) * .035f;
+        float rotation = 0f;
+
+        if (kind == 1) rotation = (float)Math.sin(phase * .82f) * 3.2f;
+        if (kind == 2) rotation = (float)Math.sin(phase * .72f) * 4.5f;
+        if (kind == 4) rotation = (float)Math.sin(phase * .90f) * 7.0f;
+        if (kind == 5) rotation = (float)Math.sin(phase * .76f) * 5.0f;
+
+        float cx = r.centerX();
+        float cy = r.centerY() + bob;
+
+        canvas.save();
+        canvas.translate(cx, cy);
+        canvas.rotate(rotation);
+        canvas.scale(pulse, pulse);
+        canvas.translate(-cx, -cy);
+
+        paint.setColor(Color.argb(80, 0, 0, 0));
+        canvas.drawOval(
+                new RectF(cx - s * .29f, cy + s * .28f, cx + s * .29f, cy + s * .39f),
+                paint
+        );
+
+        if (kind == 0) drawHeart(canvas, cx, cy, s, phase);
+        else if (kind == 1) drawLipstick(canvas, cx, cy, s, phase);
+        else if (kind == 2) drawCherries(canvas, cx, cy, s, phase);
+        else if (kind == 3) drawDiamond(canvas, cx, cy, s, phase);
+        else if (kind == 4) drawStar(canvas, cx, cy, s, phase);
+        else drawHeel(canvas, cx, cy, s, phase);
+
+        drawPieceSparkle(canvas, cx, cy, s, phase, kind);
+        canvas.restore();
+    }
+
+    private void drawHeart(Canvas canvas, float cx, float cy, float s, float phase) {
+        Path heart = new Path();
+        heart.moveTo(cx, cy + s * .31f);
+        heart.cubicTo(cx - s * .44f, cy + s * .05f, cx - s * .34f, cy - s * .32f, cx - s * .12f, cy - s * .23f);
+        heart.cubicTo(cx - s * .05f, cy - s * .20f, cx, cy - s * .11f, cx, cy - s * .05f);
+        heart.cubicTo(cx, cy - s * .11f, cx + s * .05f, cy - s * .20f, cx + s * .12f, cy - s * .23f);
+        heart.cubicTo(cx + s * .34f, cy - s * .32f, cx + s * .44f, cy + s * .05f, cx, cy + s * .31f);
+        heart.close();
+
+        LinearGradient fill = new LinearGradient(
+                cx - s * .25f, cy - s * .28f, cx + s * .26f, cy + s * .30f,
+                new int[]{Color.rgb(255, 115, 156), Color.rgb(247, 37, 91), Color.rgb(181, 10, 57)},
+                null,
+                Shader.TileMode.CLAMP
+        );
+        paint.setShader(fill);
+        canvas.drawPath(heart, paint);
+        paint.setShader(null);
+
+        paint.setColor(Color.argb(170, 255, 255, 255));
+        canvas.drawOval(new RectF(cx - s * .20f, cy - s * .18f, cx - s * .06f, cy - s * .06f), paint);
+    }
+
+    private void drawLipstick(Canvas canvas, float cx, float cy, float s, float phase) {
+        paint.setColor(Color.rgb(35, 30, 38));
+        canvas.drawRoundRect(
+                new RectF(cx - s * .14f, cy - s * .02f, cx + s * .14f, cy + s * .31f),
+                s * .04f, s * .04f, paint
+        );
+
+        LinearGradient gold = new LinearGradient(
+                cx - s * .16f, cy, cx + s * .16f, cy,
+                new int[]{Color.rgb(154, 94, 10), Color.rgb(255, 226, 94), Color.rgb(194, 118, 14)},
+                null, Shader.TileMode.CLAMP
+        );
+        paint.setShader(gold);
+        canvas.drawRect(cx - s * .12f, cy - s * .04f, cx + s * .12f, cy + s * .16f, paint);
+        paint.setShader(null);
+
+        Path tip = new Path();
+        tip.moveTo(cx - s * .10f, cy - s * .04f);
+        tip.lineTo(cx - s * .08f, cy - s * .31f);
+        tip.lineTo(cx + s * .10f, cy - s * .38f);
+        tip.lineTo(cx + s * .10f, cy - s * .04f);
+        tip.close();
+        paint.setColor(Color.rgb(255, 47, 119));
+        canvas.drawPath(tip, paint);
+
+        paint.setColor(Color.argb(180, 255, 255, 255));
+        canvas.drawRoundRect(
+                new RectF(cx - s * .045f, cy - s * .27f, cx + s * .005f, cy - s * .10f),
+                s * .02f, s * .02f, paint
+        );
+    }
+
+    private void drawCherries(Canvas canvas, float cx, float cy, float s, float phase) {
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(s * .045f);
+        paint.setStrokeCap(Paint.Cap.ROUND);
+        paint.setColor(Color.rgb(77, 190, 88));
+        canvas.drawLine(cx - s * .14f, cy + s * .03f, cx - s * .03f, cy - s * .30f, paint);
+        canvas.drawLine(cx + s * .14f, cy + s * .03f, cx - s * .03f, cy - s * .30f, paint);
+        paint.setStyle(Paint.Style.FILL);
+        paint.setStrokeCap(Paint.Cap.BUTT);
+
+        paint.setColor(Color.rgb(87, 207, 94));
+        Path leaf = new Path();
+        leaf.moveTo(cx - s * .02f, cy - s * .27f);
+        leaf.quadTo(cx + s * .23f, cy - s * .39f, cx + s * .26f, cy - s * .20f);
+        leaf.quadTo(cx + s * .09f, cy - s * .17f, cx - s * .02f, cy - s * .27f);
+        leaf.close();
+        canvas.drawPath(leaf, paint);
+
+        drawCherry(canvas, cx - s * .17f, cy + s * .13f, s * .19f);
+        drawCherry(canvas, cx + s * .17f, cy + s * .13f, s * .19f);
+    }
+
+    private void drawCherry(Canvas canvas, float cx, float cy, float radius) {
+        RadialGradient cherry = new RadialGradient(
+                cx - radius * .32f, cy - radius * .35f, radius * 1.35f,
+                new int[]{Color.rgb(255, 113, 130), Color.rgb(224, 25, 52), Color.rgb(132, 6, 31)},
+                null, Shader.TileMode.CLAMP
+        );
+        paint.setShader(cherry);
+        canvas.drawCircle(cx, cy, radius, paint);
+        paint.setShader(null);
+        paint.setColor(Color.argb(190, 255, 255, 255));
+        canvas.drawCircle(cx - radius * .32f, cy - radius * .32f, radius * .20f, paint);
+    }
+
+    private void drawDiamond(Canvas canvas, float cx, float cy, float s, float phase) {
+        Path diamond = new Path();
+        diamond.moveTo(cx - s * .32f, cy - s * .12f);
+        diamond.lineTo(cx - s * .16f, cy - s * .31f);
+        diamond.lineTo(cx + s * .16f, cy - s * .31f);
+        diamond.lineTo(cx + s * .32f, cy - s * .12f);
+        diamond.lineTo(cx, cy + s * .34f);
+        diamond.close();
+
+        LinearGradient cyan = new LinearGradient(
+                cx - s * .30f, cy - s * .28f, cx + s * .30f, cy + s * .32f,
+                new int[]{Color.rgb(185, 249, 255), Color.rgb(41, 205, 230), Color.rgb(5, 126, 177)},
+                null, Shader.TileMode.CLAMP
+        );
+        paint.setShader(cyan);
+        canvas.drawPath(diamond, paint);
+        paint.setShader(null);
+
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(s * .025f);
+        paint.setColor(Color.argb(150, 255, 255, 255));
+        canvas.drawLine(cx - s * .16f, cy - s * .30f, cx, cy + s * .33f, paint);
+        canvas.drawLine(cx + s * .16f, cy - s * .30f, cx, cy + s * .33f, paint);
+        canvas.drawLine(cx - s * .31f, cy - s * .12f, cx + s * .31f, cy - s * .12f, paint);
+        paint.setStyle(Paint.Style.FILL);
+
+        float sweep = ((phase * .35f) % 1f);
+        float shineX = cx - s * .20f + sweep * s * .40f;
+        paint.setColor(Color.argb(140, 255, 255, 255));
+        canvas.drawCircle(shineX, cy - s * .15f, s * .045f, paint);
+    }
+
+    private void drawStar(Canvas canvas, float cx, float cy, float s, float phase) {
+        Path star = makeStar(cx, cy, s * .35f, s * .16f, -90f);
+
+        LinearGradient gold = new LinearGradient(
+                cx - s * .25f, cy - s * .30f, cx + s * .28f, cy + s * .28f,
+                new int[]{Color.rgb(255, 250, 160), Color.rgb(255, 196, 35), Color.rgb(225, 126, 8)},
+                null, Shader.TileMode.CLAMP
+        );
+        paint.setShader(gold);
+        canvas.drawPath(star, paint);
+        paint.setShader(null);
+
+        paint.setColor(Color.argb(180, 255, 255, 255));
+        canvas.drawCircle(cx - s * .10f, cy - s * .13f, s * .045f, paint);
+    }
+
+    private Path makeStar(float cx, float cy, float outer, float inner, float startDeg) {
+        Path p = new Path();
+        for (int i = 0; i < 10; i++) {
+            double angle = Math.toRadians(startDeg + i * 36f);
+            float radius = (i & 1) == 0 ? outer : inner;
+            float x = cx + (float)Math.cos(angle) * radius;
+            float y = cy + (float)Math.sin(angle) * radius;
+            if (i == 0) p.moveTo(x, y);
+            else p.lineTo(x, y);
         }
+        p.close();
+        return p;
+    }
+
+    private void drawHeel(Canvas canvas, float cx, float cy, float s, float phase) {
+        Path shoe = new Path();
+        shoe.moveTo(cx - s * .31f, cy - s * .19f);
+        shoe.quadTo(cx - s * .15f, cy + s * .04f, cx + s * .03f, cy + s * .13f);
+        shoe.quadTo(cx + s * .19f, cy + s * .20f, cx + s * .33f, cy + s * .11f);
+        shoe.lineTo(cx + s * .34f, cy + s * .22f);
+        shoe.lineTo(cx - s * .03f, cy + s * .25f);
+        shoe.quadTo(cx - s * .24f, cy + s * .19f, cx - s * .31f, cy - s * .19f);
+        shoe.close();
+
+        LinearGradient red = new LinearGradient(
+                cx - s * .30f, cy - s * .20f, cx + s * .34f, cy + s * .24f,
+                new int[]{Color.rgb(255, 115, 145), Color.rgb(237, 34, 79), Color.rgb(154, 5, 48)},
+                null, Shader.TileMode.CLAMP
+        );
+        paint.setShader(red);
+        canvas.drawPath(shoe, paint);
+        paint.setShader(null);
+
+        paint.setColor(Color.rgb(157, 5, 47));
+        canvas.drawRect(cx + s * .18f, cy + s * .18f, cx + s * .24f, cy + s * .39f, paint);
+
+        paint.setColor(Color.argb(175, 255, 255, 255));
+        canvas.drawOval(
+                new RectF(cx - s * .19f, cy - s * .10f, cx + s * .05f, cy - s * .02f),
+                paint
+        );
+    }
+
+    private void drawPieceSparkle(Canvas canvas, float cx, float cy, float s, float phase, int kind) {
+        float orbit = phase * (.55f + kind * .035f);
+        float x = cx + (float)Math.cos(orbit) * s * .31f;
+        float y = cy + (float)Math.sin(orbit * 1.13f) * s * .28f;
+        float size = s * (.035f + .018f * (1f + (float)Math.sin(phase * 1.8f)));
+
+        paint.setColor(Color.argb(190, 255, 255, 255));
+        canvas.drawCircle(x, y, size, paint);
+        paint.setStrokeWidth(Math.max(1f, size * .45f));
+        canvas.drawLine(x - size * 2f, y, x + size * 2f, y, paint);
+        canvas.drawLine(x, y - size * 2f, x, y + size * 2f, paint);
+    }
+
+    private float animationSeconds() {
+        return (SystemClock.uptimeMillis() - animationStart) / 1000f;
     }
 
     private void drawBoosters(Canvas canvas) {
@@ -261,6 +581,7 @@ public class WamBamGameView extends View {
     }
 
     private void drawCentered(Canvas canvas, String value, float cx, float cy, float size, int colour) {
+        text.setStyle(Paint.Style.FILL);
         text.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         text.setTextAlign(Paint.Align.CENTER);
         text.setTextSize(size);
@@ -305,6 +626,7 @@ public class WamBamGameView extends View {
     public boolean onTouchEvent(MotionEvent event) {
         float x = event.getX();
         float y = event.getY();
+
         if (event.getAction() == MotionEvent.ACTION_DOWN) {
             downX = x;
             downY = y;
@@ -315,18 +637,21 @@ public class WamBamGameView extends View {
             }
             return true;
         }
+
         if (event.getAction() == MotionEvent.ACTION_UP) {
             if (modal) handleModal(x,y);
             else if (screen == HOME) handleHome(x,y);
             else handleGame(x,y);
             return true;
         }
+
         return true;
     }
 
     private void handleHome(float x, float y) {
         float nx = x/getWidth();
         float ny = y/getHeight();
+
         if (inside(nx,ny,.20f,.64f,.80f,.79f)) startLevel();
         else if (inside(nx,ny,0,.77f,.25f,.94f)) showInfo("EVENTS","Timed events coming soon.");
         else if (inside(nx,ny,.25f,.77f,.50f,.94f)) showInfo("SHOP","Coins and boosters coming soon.");
@@ -340,9 +665,14 @@ public class WamBamGameView extends View {
     private void handleGame(float upX, float upY) {
         float nx = upX/getWidth();
         float ny = upY/getHeight();
+
         if (inside(nx,ny,.82f,0,1f,.12f)) {
-            feedback(); screen = HOME; invalidate(); return;
+            feedback();
+            screen = HOME;
+            invalidate();
+            return;
         }
+
         if (ny > .84f) {
             if (nx < .25f) useHammer();
             else if (nx < .50f) useShuffle();
@@ -350,20 +680,25 @@ public class WamBamGameView extends View {
             else useHint();
             return;
         }
+
         if (downCellX < 0 || downCellY < 0) return;
+
         if (hammerMode) {
             hammerMode = false;
             hammerUsed = true;
             removeSingle(downCellX, downCellY);
             return;
         }
+
         float dx = upX-downX;
         float dy = upY-downY;
         float distance = (float)Math.sqrt(dx*dx+dy*dy);
+
         if (distance < getWidth()*.045f) {
             tapCell(downCellX,downCellY);
             return;
         }
+
         int tx = downCellX;
         int ty = downCellY;
         if (Math.abs(dx)>Math.abs(dy)) tx += dx>0?1:-1;
@@ -373,20 +708,27 @@ public class WamBamGameView extends View {
 
     private void tapCell(int x, int y) {
         if (selectedX < 0) {
-            selectedX=x; selectedY=y; invalidate(); return;
+            selectedX=x;
+            selectedY=y;
+            invalidate();
+            return;
         }
+
         if (Math.abs(selectedX-x)+Math.abs(selectedY-y)==1) {
             int sx=selectedX, sy=selectedY;
             selectedX=selectedY=-1;
             trySwap(sx,sy,x,y);
         } else {
-            selectedX=x; selectedY=y; invalidate();
+            selectedX=x;
+            selectedY=y;
+            invalidate();
         }
     }
 
     private void trySwap(int x1,int y1,int x2,int y2) {
         swap(x1,y1,x2,y2);
         Set<Long> matches=findMatches();
+
         if (matches.isEmpty()) {
             swap(x1,y1,x2,y2);
             showToast("NO MATCH",500);
@@ -396,6 +738,7 @@ public class WamBamGameView extends View {
             resolve(matches);
             checkEnd();
         }
+
         invalidate();
     }
 
@@ -407,13 +750,16 @@ public class WamBamGameView extends View {
             collapse();
             matches=findMatches();
         }
+
         if (!findMove(null)) shuffleInternal();
     }
 
     private void collapse() {
         for (int x=0;x<COLS;x++) {
             int write=ROWS-1;
-            for (int y=ROWS-1;y>=0;y--) if (board[x][y]>=0) board[x][write--]=board[x][y];
+            for (int y=ROWS-1;y>=0;y--) {
+                if (board[x][y]>=0) board[x][write--]=board[x][y];
+            }
             while (write>=0) board[x][write--]=random.nextInt(6);
         }
     }
@@ -424,108 +770,189 @@ public class WamBamGameView extends View {
         feedback();
         showToast("WHACK!",600);
         collapse();
+
         Set<Long> cascades=findMatches();
         if (!cascades.isEmpty()) resolve(cascades);
+
         checkEnd();
         invalidate();
     }
 
     private void useHammer() {
-        if (hammerUsed) { showToast("HAMMER USED",650); return; }
-        hammerMode=true; feedback(); showToast("TAP A PIECE",900);
+        if (hammerUsed) {
+            showToast("HAMMER USED",650);
+            return;
+        }
+
+        hammerMode=true;
+        feedback();
+        showToast("TAP A PIECE",900);
     }
 
     private void useShuffle() {
-        if (shuffleUsed) { showToast("SHUFFLE USED",650); return; }
-        shuffleUsed=true; feedback(); shuffleInternal(); showToast("SHUFFLED!",650); invalidate();
+        if (shuffleUsed) {
+            showToast("SHUFFLE USED",650);
+            return;
+        }
+
+        shuffleUsed=true;
+        feedback();
+        shuffleInternal();
+        showToast("SHUFFLED!",650);
+        invalidate();
     }
 
     private void useBam() {
-        if (bamUsed) { showToast("BAM USED",650); return; }
-        bamUsed=true; feedback();
+        if (bamUsed) {
+            showToast("BAM USED",650);
+            return;
+        }
+
+        bamUsed=true;
+        feedback();
         int cx=1+random.nextInt(6), cy=1+random.nextInt(6), count=0;
-        for (int y=cy-1;y<=cy+1;y++) for (int x=cx-1;x<=cx+1;x++) { board[x][y]=-1; count++; }
-        cleared+=count; collapse(); showToast("BAM!",800);
+
+        for (int y=cy-1;y<=cy+1;y++) {
+            for (int x=cx-1;x<=cx+1;x++) {
+                board[x][y]=-1;
+                count++;
+            }
+        }
+
+        cleared+=count;
+        collapse();
+        showToast("BAM!",800);
+
         Set<Long> cascades=findMatches();
         if (!cascades.isEmpty()) resolve(cascades);
-        checkEnd(); invalidate();
+
+        checkEnd();
+        invalidate();
     }
 
     private void useHint() {
-        if (hintUsed) { showToast("HINT USED",650); return; }
-        hintUsed=true; feedback();
+        if (hintUsed) {
+            showToast("HINT USED",650);
+            return;
+        }
+
+        hintUsed=true;
+        feedback();
         int[] move=new int[4];
+
         if (findMove(move)) {
-            hintAX=move[0]; hintAY=move[1]; hintBX=move[2]; hintBY=move[3];
-            showToast("TRY THESE",1000); invalidate();
-            postDelayed(() -> { hintAX=hintAY=hintBX=hintBY=-1; invalidate(); },1200);
+            hintAX=move[0];
+            hintAY=move[1];
+            hintBX=move[2];
+            hintBY=move[3];
+            showToast("TRY THESE",1000);
+            invalidate();
+
+            postDelayed(() -> {
+                hintAX=hintAY=hintBX=hintBY=-1;
+                invalidate();
+            },1200);
         }
     }
 
     private void generateBoard() {
-        for (int y=0;y<ROWS;y++) for (int x=0;x<COLS;x++) {
-            ArrayList<Integer> choices=new ArrayList<>();
-            for (int k=0;k<6;k++) {
-                boolean h=x>=2 && board[x-1][y]==k && board[x-2][y]==k;
-                boolean v=y>=2 && board[x][y-1]==k && board[x][y-2]==k;
-                if (!h && !v) choices.add(k);
+        for (int y=0;y<ROWS;y++) {
+            for (int x=0;x<COLS;x++) {
+                ArrayList<Integer> choices=new ArrayList<>();
+
+                for (int k=0;k<6;k++) {
+                    boolean h=x>=2 && board[x-1][y]==k && board[x-2][y]==k;
+                    boolean v=y>=2 && board[x][y-1]==k && board[x][y-2]==k;
+                    if (!h && !v) choices.add(k);
+                }
+
+                board[x][y]=choices.get(random.nextInt(choices.size()));
             }
-            board[x][y]=choices.get(random.nextInt(choices.size()));
         }
+
         if (!findMove(null)) generateBoard();
     }
 
     private Set<Long> findMatches() {
         Set<Long> out=new HashSet<>();
+
         for (int y=0;y<ROWS;y++) {
             int s=0;
             while (s<COLS) {
                 int k=board[s][y], e=s+1;
                 while (e<COLS && board[e][y]==k) e++;
-                if (k>=0 && e-s>=3) for (int x=s;x<e;x++) out.add(pack(x,y));
+                if (k>=0 && e-s>=3) {
+                    for (int x=s;x<e;x++) out.add(pack(x,y));
+                }
                 s=e;
             }
         }
+
         for (int x=0;x<COLS;x++) {
             int s=0;
             while (s<ROWS) {
                 int k=board[x][s], e=s+1;
                 while (e<ROWS && board[x][e]==k) e++;
-                if (k>=0 && e-s>=3) for (int y=s;y<e;y++) out.add(pack(x,y));
+                if (k>=0 && e-s>=3) {
+                    for (int y=s;y<e;y++) out.add(pack(x,y));
+                }
                 s=e;
             }
         }
+
         return out;
     }
 
     private boolean findMove(int[] result) {
-        for (int y=0;y<ROWS;y++) for (int x=0;x<COLS;x++) {
-            int[][] d={{1,0},{0,1}};
-            for (int[] v:d) {
-                int nx=x+v[0], ny=y+v[1];
-                if (!inBounds(nx,ny)) continue;
-                swap(x,y,nx,ny);
-                boolean ok=!findMatches().isEmpty();
-                swap(x,y,nx,ny);
-                if (ok) {
-                    if (result!=null) { result[0]=x; result[1]=y; result[2]=nx; result[3]=ny; }
-                    return true;
+        for (int y=0;y<ROWS;y++) {
+            for (int x=0;x<COLS;x++) {
+                int[][] d={{1,0},{0,1}};
+
+                for (int[] v:d) {
+                    int nx=x+v[0], ny=y+v[1];
+                    if (!inBounds(nx,ny)) continue;
+
+                    swap(x,y,nx,ny);
+                    boolean ok=!findMatches().isEmpty();
+                    swap(x,y,nx,ny);
+
+                    if (ok) {
+                        if (result!=null) {
+                            result[0]=x;
+                            result[1]=y;
+                            result[2]=nx;
+                            result[3]=ny;
+                        }
+                        return true;
+                    }
                 }
             }
         }
+
         return false;
     }
 
     private void shuffleInternal() {
         List<Integer> values=new ArrayList<>();
-        for (int y=0;y<ROWS;y++) for (int x=0;x<COLS;x++) values.add(board[x][y]<0?random.nextInt(6):board[x][y]);
+
+        for (int y=0;y<ROWS;y++) {
+            for (int x=0;x<COLS;x++) {
+                values.add(board[x][y]<0?random.nextInt(6):board[x][y]);
+            }
+        }
+
         int guard=0;
         do {
             Collections.shuffle(values,random);
             int n=0;
-            for (int y=0;y<ROWS;y++) for (int x=0;x<COLS;x++) board[x][y]=values.get(n++);
+            for (int y=0;y<ROWS;y++) {
+                for (int x=0;x<COLS;x++) {
+                    board[x][y]=values.get(n++);
+                }
+            }
             guard++;
         } while ((!findMatches().isEmpty() || !findMove(null)) && guard<100);
+
         if (guard>=100) generateBoard();
     }
 
@@ -533,63 +960,117 @@ public class WamBamGameView extends View {
         RectF outer=boardRect();
         float pad=outer.width()*.018f;
         RectF inner=new RectF(outer.left+pad,outer.top+pad,outer.right-pad,outer.bottom-pad);
+
         if (!inner.contains(x,y)) return new int[]{-1,-1};
+
         float gap=inner.width()*.007f;
         float cell=(inner.width()-gap*7f)/8f;
         int cx=(int)((x-inner.left)/(cell+gap));
         int cy=(int)((y-inner.top)/(cell+gap));
+
         return inBounds(cx,cy)?new int[]{cx,cy}:new int[]{-1,-1};
     }
 
     private void startLevel() {
-        screen=GAME; movesLeft=START_MOVES; cleared=0;
-        selectedX=selectedY=-1; hammerMode=false;
+        screen=GAME;
+        movesLeft=START_MOVES;
+        cleared=0;
+        selectedX=selectedY=-1;
+        hammerMode=false;
         hammerUsed=shuffleUsed=bamUsed=hintUsed=false;
         hintAX=hintAY=hintBX=hintBY=-1;
-        modal=false; generateBoard(); feedback(); invalidate();
+        modal=false;
+        generateBoard();
+        feedback();
+        invalidate();
     }
 
     private void checkEnd() {
-        if (cleared>=TARGET) showChoice("WAM! YOU WON","Level complete.","PLAY AGAIN",this::startLevel);
-        else if (movesLeft<=0) showChoice("OUT OF MOVES",cleared+" of "+TARGET+" cleared.","TRY AGAIN",this::startLevel);
+        if (cleared>=TARGET) {
+            showChoice("WAM! YOU WON","Level complete.","PLAY AGAIN",this::startLevel);
+        } else if (movesLeft<=0) {
+            showChoice("OUT OF MOVES",cleared+" of "+TARGET+" cleared.","TRY AGAIN",this::startLevel);
+        }
     }
 
-    private void showInfo(String title,String body) { showChoice(title,body,"OK",() -> {}); }
+    private void showInfo(String title,String body) {
+        showChoice(title,body,"OK",() -> {});
+    }
 
     private void showChoice(String title,String body,String button,Runnable action) {
-        modalTitle=title; modalBody=body; modalButton=button; modalAction=action; modal=true; feedback(); invalidate();
+        modalTitle=title;
+        modalBody=body;
+        modalButton=button;
+        modalAction=action;
+        modal=true;
+        feedback();
+        invalidate();
     }
 
     private void handleModal(float x,float y) {
         float nx=x/getWidth(), ny=y/getHeight();
+
         if (inside(nx,ny,.18f,.57f,.62f,.645f)) {
-            Runnable action=modalAction; modal=false; modalAction=null; feedback(); if (action!=null) action.run(); invalidate();
+            Runnable action=modalAction;
+            modal=false;
+            modalAction=null;
+            feedback();
+            if (action!=null) action.run();
+            invalidate();
         } else if (inside(nx,ny,.66f,.57f,.84f,.645f)) {
-            modal=false; modalAction=null; feedback(); invalidate();
+            modal=false;
+            modalAction=null;
+            feedback();
+            invalidate();
         }
     }
 
     private void showToast(String value,long ms) {
-        toast=value; toastUntil=System.currentTimeMillis()+ms; invalidate();
+        toast=value;
+        toastUntil=System.currentTimeMillis()+ms;
+        invalidate();
     }
 
     private void feedback() {
         tones.startTone(ToneGenerator.TONE_PROP_BEEP,40);
+
         try {
             if (Build.VERSION.SDK_INT>=31) {
                 VibratorManager manager=(VibratorManager)getContext().getSystemService(Context.VIBRATOR_MANAGER_SERVICE);
-                if (manager!=null) manager.getDefaultVibrator().vibrate(VibrationEffect.createOneShot(16,VibrationEffect.DEFAULT_AMPLITUDE));
+                if (manager!=null) {
+                    manager.getDefaultVibrator().vibrate(
+                            VibrationEffect.createOneShot(16,VibrationEffect.DEFAULT_AMPLITUDE)
+                    );
+                }
             } else {
                 Vibrator vibrator=(Vibrator)getContext().getSystemService(Context.VIBRATOR_SERVICE);
-                if (vibrator!=null && vibrator.hasVibrator()) vibrator.vibrate(VibrationEffect.createOneShot(16,VibrationEffect.DEFAULT_AMPLITUDE));
+                if (vibrator!=null && vibrator.hasVibrator()) {
+                    vibrator.vibrate(
+                            VibrationEffect.createOneShot(16,VibrationEffect.DEFAULT_AMPLITUDE)
+                    );
+                }
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
     }
 
-    private boolean inside(float x,float y,float l,float t,float r,float b) { return x>=l && x<=r && y>=t && y<=b; }
-    private boolean inBounds(int x,int y) { return x>=0 && x<COLS && y>=0 && y<ROWS; }
-    private void swap(int x1,int y1,int x2,int y2) { int v=board[x1][y1]; board[x1][y1]=board[x2][y2]; board[x2][y2]=v; }
-    private long pack(int x,int y) { return (((long)x)<<32) | (y & 0xffffffffL); }
+    private boolean inside(float x,float y,float l,float t,float r,float b) {
+        return x>=l && x<=r && y>=t && y<=b;
+    }
+
+    private boolean inBounds(int x,int y) {
+        return x>=0 && x<COLS && y>=0 && y<ROWS;
+    }
+
+    private void swap(int x1,int y1,int x2,int y2) {
+        int v=board[x1][y1];
+        board[x1][y1]=board[x2][y2];
+        board[x2][y2]=v;
+    }
+
+    private long pack(int x,int y) {
+        return (((long)x)<<32) | (y & 0xffffffffL);
+    }
 
     @Override
     protected void onDetachedFromWindow() {
