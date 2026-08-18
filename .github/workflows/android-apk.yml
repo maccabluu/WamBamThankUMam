@@ -9,6 +9,9 @@ on:
       - "README.md"
       - "source_parts/**"
       - "android_source_parts/**"
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
