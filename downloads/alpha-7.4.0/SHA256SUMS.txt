@@ -1,0 +1,2 @@
+852c8079ca901512c62afb753dd7b5f5d292d97b808e03f6578ff91456aef62c  WamBam_Thank_U_Mam_Alpha_7.4.0_Level3_Disco.apk
+acfd9df1858dd86e003780d917bde35b467ee6bbda62b75cef45da67e216f3c6  WamBam_GDevelop_Alpha_7.4.0_Level3_Disco_Source.zip

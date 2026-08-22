@@ -2,12 +2,12 @@
 
 Native Android match-3 game in Alpha.
 
-## Latest GDevelop build — Alpha 7.2.1
+## Latest GDevelop build — Alpha 7.4.0
 
-- [Download the Android APK](downloads/alpha-7.2.1/WamBam_Thank_U_Mam_Alpha_7.2.1.apk)
-- [Download the editable GDevelop source](downloads/alpha-7.2.1/WamBam_GDevelop_Alpha_7.2.1_App_Icon_Source.zip)
+- [Download the Android APK](downloads/alpha-7.4.0/WamBam_Thank_U_Mam_Alpha_7.4.0_Level3_Disco.apk)
+- [Download the editable GDevelop source](downloads/alpha-7.4.0/WamBam_GDevelop_Alpha_7.4.0_Level3_Disco_Source.zip)
 
-This build includes the new Wam Bam app icon, Level 2 Disco District artwork, Level 2 unlocking, and coins that continue across levels and saved sessions.
+This build fixes the cropped Level 2/3 bottom controls, realigns the board, adds the new Level 3 Starlight Stage artwork and targets, creates Discos from 2 x 2 squares, and turns a Disco-swapped icon type into exploding Discos that award coins and update targets. It also includes the Wam Bam show-poster completion popup, road-map Level 3 unlock, stage curtains, BluStudio loader, app icon, and saved coins across levels.
 
 Package: `com.macca.wambamthankumam`
 
