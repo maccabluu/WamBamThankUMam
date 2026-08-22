@@ -2,6 +2,15 @@
 
 Native Android match-3 game in Alpha.
 
+## Latest GDevelop build — Alpha 7.2.1
+
+- [Download the Android APK](downloads/alpha-7.2.1/WamBam_Thank_U_Mam_Alpha_7.2.1.apk)
+- [Download the editable GDevelop source](downloads/alpha-7.2.1/WamBam_GDevelop_Alpha_7.2.1_App_Icon_Source.zip)
+
+This build includes the new Wam Bam app icon, Level 2 Disco District artwork, Level 2 unlocking, and coins that continue across levels and saved sessions.
+
+Package: `com.macca.wambamthankumam`
+
 ## Alpha 0.1
 
 - Android Studio project
@@ -23,6 +32,6 @@ Native Android match-3 game in Alpha.
 
 Package: `com.blustudio.wambam`
 
-## APK builds
+## Original native APK builds
 
 GitHub Actions uses `.github/workflows/android-apk.yml` to compile the Android debug APK. Successful builds upload an artifact named `WamBamThankUMam-Android-APK` containing `app-debug.apk`.
