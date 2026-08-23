@@ -30,12 +30,24 @@ jobs:
           rm -rf /tmp/wambam
           mkdir -p /tmp/wambam
           unzip -q downloads/alpha-7.9.0/WamBam_GDevelop_Alpha_7.9.0_Events_And_Navigation_Source.zip -d /tmp/wambam
-          echo "== TOP LEVEL FILES =="
-          find /tmp/wambam -maxdepth 3 -type f | sort | head -n 300
-          echo "== PROJECT / BUILD FILES =="
-          find /tmp/wambam -type f \( -name '*.json' -o -name '*.js' -o -name '*.html' -o -name '*.xml' -o -name '*.gradle' -o -name '*.properties' \) | sort | head -n 500
-          echo "== WAM BAM SOURCE MATCHES =="
-          grep -RIl -E 'com\.macca\.wambamthankumam|70900|Level 1|Level1|coins|hearts|grid' /tmp/wambam | head -n 250 || true
+          ROOT="/tmp/wambam/WamBam_GDevelop_Alpha_7.9.0"
+          PROJECT="$ROOT/Wam Bam Thank u Mam.json"
+          echo "== PROJECT SIZE =="
+          wc -c "$PROJECT"
+          echo "== TOP LEVEL KEYS =="
+          jq -r 'keys[]' "$PROJECT"
+          echo "== LAYOUTS =="
+          jq -r '.layouts[]?.name' "$PROJECT"
+          echo "== OBJECTS PER LAYOUT =="
+          jq -r '.layouts[]? | "LAYOUT: \(.name)\n" + ((.objects // []) | map(.name) | join("\n")) + "\n---"' "$PROJECT"
+          echo "== RELEVANT RESOURCES =="
+          jq -r '.resources.resources[]? | select(((.name // "") + " " + (.file // "")) | test("game|level|background|tile|coin|heart|target|move|grid|board"; "i")) | [.name,.file] | @tsv' "$PROJECT"
+          echo "== PROJECT TEXT MATCHES =="
+          grep -oEi '.{0,100}(level ?1|grid|board|tile|coin|heart|moves|target).{0,180}' "$PROJECT" | head -n 300 || true
+          echo "== GAME OVERLAY MATCHES =="
+          grep -nEi 'level ?1|grid|board|tile|coin|heart|moves|target|cols|rows' "$ROOT/game-overlay.inline.js" | head -n 350 || true
+          echo "== 7.9 INJECTOR =="
+          sed -n '1,320p' "$ROOT/inject-alpha-7.9.0.mjs"
 
       - name: Check Level 1 JavaScript
         run: node --check app/src/main/assets/game11.js
