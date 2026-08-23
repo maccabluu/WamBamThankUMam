@@ -28,14 +28,119 @@ jobs:
           rm -rf work/META-INF
           base64 -d release-tools/alpha-8.0/background.b64 > work/assets/www/game_background_new.jpg
           patch work/assets/www/code2.js < release-tools/alpha-8.0/code2.patch
+
           python3 - <<'PY'
           from pathlib import Path
-          p=Path('work/assets/www/data.js')
-          s=p.read_text()
-          s=s.replace('"version":"7.9.0"','"version":"8.0.0"',1)
-          p.write_text(s)
+          import struct
+
+          # Update GDevelop project metadata.
+          p = Path('work/assets/www/data.js')
+          s = p.read_text()
+          if '"version":"7.9.0"' not in s:
+              raise SystemExit('7.9.0 project version marker not found')
+          p.write_text(s.replace('"version":"7.9.0"','"version":"8.0.0"',1))
+
+          # Update the REAL Android package version in binary AndroidManifest.xml.
+          # Alpha 7.9 was versionCode 70900/versionName 7.9.0. Android needs a
+          # higher versionCode for a clean in-place update.
+          mp = Path('work/AndroidManifest.xml')
+          data = bytearray(mp.read_bytes())
+
+          def u16(o): return struct.unpack_from('<H', data, o)[0]
+          def u32(o): return struct.unpack_from('<I', data, o)[0]
+
+          off = u16(2)
+          strings = []
+          while off < len(data):
+              typ = u16(off)
+              hs = u16(off + 2)
+              size = u32(off + 4)
+              if size <= 0:
+                  raise SystemExit('Invalid AndroidManifest chunk')
+
+              if typ == 0x0001:
+                  count = u32(off + 8)
+                  flags = u32(off + 16)
+                  start = u32(off + 20)
+                  utf8 = bool(flags & 0x100)
+                  offsets = [u32(off + hs + i * 4) for i in range(count)]
+                  base = off + start
+
+                  def len8(pos):
+                      b = data[pos]
+                      return ((((b & 0x7f) << 8) | data[pos + 1]), 2) if b & 0x80 else (b, 1)
+
+                  def len16(pos):
+                      v = u16(pos)
+                      return ((((v & 0x7fff) << 16) | u16(pos + 2)), 4) if v & 0x8000 else (v, 2)
+
+                  strings = []
+                  for so in offsets:
+                      pos = base + so
+                      if utf8:
+                          _, n = len8(pos); pos += n
+                          blen, n = len8(pos); pos += n
+                          strings.append(bytes(data[pos:pos + blen]).decode('utf-8'))
+                      else:
+                          slen, n = len16(pos); pos += n
+                          strings.append(bytes(data[pos:pos + slen * 2]).decode('utf-16le'))
+
+              elif typ == 0x0102 and strings:
+                  name_idx = u32(off + 20)
+                  name = strings[name_idx]
+                  if name == 'manifest':
+                      attr_start = u16(off + 24)
+                      attr_size = u16(off + 26)
+                      attr_count = u16(off + 28)
+                      base = off + 16 + attr_start
+                      found_code = False
+                      found_name = False
+                      package_ok = False
+                      for i in range(attr_count):
+                          a = base + i * attr_size
+                          nidx = u32(a + 4)
+                          raw = u32(a + 8)
+                          vtype = data[a + 15]
+                          vdata = u32(a + 16)
+                          aname = strings[nidx]
+                          rawstr = strings[raw] if raw != 0xffffffff and raw < len(strings) else None
+
+                          if aname == 'package':
+                              package_ok = (rawstr == 'com.macca.wambamthankumam')
+
+                          if aname == 'versionCode':
+                              if vtype != 0x10 or vdata != 70900:
+                                  raise SystemExit(f'Unexpected old versionCode: {vdata}')
+                              struct.pack_into('<I', data, a + 16, 80000)
+                              found_code = True
+
+                          if aname == 'versionName':
+                              if rawstr != '7.9.0':
+                                  raise SystemExit(f'Unexpected old versionName: {rawstr}')
+                              found_name = True
+
+                      if not package_ok:
+                          raise SystemExit('Unexpected Android package id')
+                      if not (found_code and found_name):
+                          raise SystemExit('Android version attributes not found')
+                      break
+
+              off += size
+
+          old16 = '7.9.0'.encode('utf-16le')
+          new16 = '8.0.0'.encode('utf-16le')
+          hits = data.count(old16)
+          if hits < 1:
+              raise SystemExit('Binary versionName string not found')
+          data = data.replace(old16, new16)
+          mp.write_bytes(data)
+          print('Android manifest patched: versionCode=80000 versionName=8.0.0')
           PY
+
           node --check work/assets/www/code2.js
+          grep -q 'const ROWS = 11' work/assets/www/code2.js
+          grep -q 'const COLS = 8' work/assets/www/code2.js
+          grep -q '"version":"8.0.0"' work/assets/www/data.js
           (cd work && zip -qr ../WamBam_Alpha_8.0.0_11_Row_Grid_Updated-unsigned.apk .)
 
       - uses: actions/setup-java@v4
@@ -54,16 +159,27 @@ jobs:
           WB_KEY_PASSWORD: ${{ secrets.WB_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          if [ -z "${WB_KEYSTORE_B64:-}" ]; then
-            echo "ERROR: WB_KEYSTORE_B64 is missing. Alpha 8 must use the same signing key as the installed 7.9 app."
-            exit 1
-          fi
+          for v in WB_KEYSTORE_B64 WB_KEYSTORE_PASSWORD WB_KEY_ALIAS WB_KEY_PASSWORD; do
+            if [ -z "${!v:-}" ]; then
+              echo "ERROR: required signing secret $v is missing"
+              exit 1
+            fi
+          done
+
           sdkmanager "build-tools;35.0.0"
           BT="$ANDROID_HOME/build-tools/35.0.0"
           echo "$WB_KEYSTORE_B64" | base64 -d > wam-bam-release.keystore
+
+          # Refuse to publish unless GitHub has the exact Alpha 7.9 signing key.
+          EXPECTED="D0:4C:06:9C:47:D1:64:2C:83:24:3D:E6:81:E6:2B:FD:1A:5C:99:68:16:AB:0C:7B:15:DE:A8:2A:91:33:8A:D1"
+          ACTUAL="$(keytool -list -v -keystore wam-bam-release.keystore -storepass "$WB_KEYSTORE_PASSWORD" -alias "$WB_KEY_ALIAS" | sed -n 's/.*SHA256: //p' | head -1)"
+          echo "Signing certificate SHA256: $ACTUAL"
+          test "$ACTUAL" = "$EXPECTED"
+
           "$BT/zipalign" -f 4 WamBam_Alpha_8.0.0_11_Row_Grid_Updated-unsigned.apk WamBam_Alpha_8.0.0_11_Row_Grid_Updated-aligned.apk
           "$BT/apksigner" sign --ks wam-bam-release.keystore --ks-pass "pass:$WB_KEYSTORE_PASSWORD" --ks-key-alias "$WB_KEY_ALIAS" --key-pass "pass:$WB_KEY_PASSWORD" --out WamBam_Alpha_8.0.0_11_Row_Grid_Updated.apk WamBam_Alpha_8.0.0_11_Row_Grid_Updated-aligned.apk
-          "$BT/apksigner" verify --verbose --print-certs WamBam_Alpha_8.0.0_11_Row_Grid_Updated.apk
+          "$BT/apksigner" verify --verbose --print-certs WamBam_Alpha_8.0.0_11_Row_Grid_Updated.apk | tee verify.txt
+          grep -q 'Signer #1 certificate SHA-256 digest: d04c069c47d1642c83243de681e62bfd1a5c996816ab0c7b15dea82a91338ad1' verify.txt
           sha256sum WamBam_Alpha_8.0.0_11_Row_Grid_Updated.apk > WamBam_Alpha_8.0.0_SHA256SUMS.txt
 
       - uses: actions/upload-artifact@v4
@@ -82,5 +198,3 @@ jobs:
           files: |
             WamBam_Alpha_8.0.0_11_Row_Grid_Updated.apk
             WamBam_Alpha_8.0.0_SHA256SUMS.txt
-
-# Triggered again after adding the permanent Wam Bam signing secrets.
