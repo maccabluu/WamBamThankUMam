@@ -1,0 +1,161 @@
+name: Publish Wam Bam Alpha 9.0
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-alpha-9.yml"
+      - "release-tools/alpha-9.0/**"
+      - "app/src/main/assets/REPO LEVELS ALL.png"
+      - "downloads/alpha-9.0.0/RELEASE_NOTES.md"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android build tools and apktool
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "build-tools;35.0.0"
+          curl -L --fail --retry 3 -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+
+      - name: Build Alpha 9.0 4 x 6 gameplay APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p framework
+          java -jar apktool.jar d -p framework -f downloads/alpha-7.9.0/WamBam_Alpha_7.9.0_Events_And_Navigation.apk -o work
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          yml = Path('work/apktool.yml')
+          text = yml.read_text()
+          text, code_count = re.subn(
+              r'(?m)^(\s*versionCode:\s*)\S+\s*$',
+              r'\g<1>90000',
+              text,
+              count=1,
+          )
+          text, name_count = re.subn(
+              r'(?m)^(\s*versionName:\s*).+\s*$',
+              r'\g<1>9.0.0',
+              text,
+              count=1,
+          )
+          if code_count != 1 or name_count != 1:
+              raise SystemExit('Could not set Android version to 9.0.0')
+          yml.write_text(text)
+
+          data = Path('work/assets/www/data.js')
+          project = data.read_text()
+          if '"version":"7.9.0"' not in project:
+              raise SystemExit('Base GDevelop 7.9.0 version marker was not found')
+          data.write_text(project.replace('"version":"7.9.0"', '"version":"9.0.0"', 1))
+          PY
+
+          patch work/assets/www/code2.js < release-tools/alpha-9.0/code2.patch
+          cp "app/src/main/assets/REPO LEVELS ALL.png" work/assets/www/game_background_90.png
+
+          node --check work/assets/www/code2.js
+          grep -q 'const BOARD_COLS = 4' work/assets/www/code2.js
+          grep -q 'const BOARD_ROWS = 6' work/assets/www/code2.js
+          test "$(grep -o 'background: \"game_background_90.png\"' work/assets/www/code2.js | wc -l)" -eq 5
+          grep -q 'versionCode: 90000' work/apktool.yml
+          grep -q 'versionName: 9.0.0' work/apktool.yml
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import struct
+
+          image = Path('work/assets/www/game_background_90.png').read_bytes()
+          if image[:8] != b'\x89PNG\r\n\x1a\n':
+              raise SystemExit('Alpha 9.0 gameplay background is not a valid PNG')
+          width, height = struct.unpack('>II', image[16:24])
+          print(f'Gameplay background dimensions: {width}x{height}')
+          if (width, height) != (941, 1672):
+              raise SystemExit('Unexpected Alpha 9.0 gameplay background dimensions')
+          PY
+
+          java -jar apktool.jar b -p framework work -o WamBam_Alpha_9.0.0_4x6_Large_Icons-unsigned.apk
+
+      - name: Sign and verify Alpha 9.0
+        shell: bash
+        env:
+          WB_KEYSTORE_B64: ${{ secrets.WB_KEYSTORE_B64 }}
+          WB_KEYSTORE_PASSWORD: ${{ secrets.WB_KEYSTORE_PASSWORD }}
+          WB_KEY_ALIAS: ${{ secrets.WB_KEY_ALIAS }}
+          WB_KEY_PASSWORD: ${{ secrets.WB_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for value in WB_KEYSTORE_B64 WB_KEYSTORE_PASSWORD WB_KEY_ALIAS WB_KEY_PASSWORD; do
+            if [ -z "${!value:-}" ]; then
+              echo "ERROR: required signing secret $value is missing"
+              exit 1
+            fi
+          done
+
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          echo "$WB_KEYSTORE_B64" | base64 -d > wam-bam-release.keystore
+
+          EXPECTED="D0:4C:06:9C:47:D1:64:2C:83:24:3D:E6:81:E6:2B:FD:1A:5C:99:68:16:AB:0C:7B:15:DE:A8:2A:91:33:8A:D1"
+          ACTUAL="$(keytool -list -v -keystore wam-bam-release.keystore -storepass "$WB_KEYSTORE_PASSWORD" -alias "$WB_KEY_ALIAS" | sed -n 's/.*SHA256: //p' | head -1)"
+          test "$ACTUAL" = "$EXPECTED"
+
+          "$BT/zipalign" -f 4 WamBam_Alpha_9.0.0_4x6_Large_Icons-unsigned.apk WamBam_Alpha_9.0.0_4x6_Large_Icons-aligned.apk
+          "$BT/apksigner" sign --ks wam-bam-release.keystore --ks-pass "pass:$WB_KEYSTORE_PASSWORD" --ks-key-alias "$WB_KEY_ALIAS" --key-pass "pass:$WB_KEY_PASSWORD" --out WamBam_Alpha_9.0.0_4x6_Large_Icons.apk WamBam_Alpha_9.0.0_4x6_Large_Icons-aligned.apk
+          "$BT/zipalign" -c 4 WamBam_Alpha_9.0.0_4x6_Large_Icons.apk
+          "$BT/apksigner" verify --verbose --print-certs WamBam_Alpha_9.0.0_4x6_Large_Icons.apk | tee verify.txt
+          grep -qi 'd04c069c47d1642c83243de681e62bfd1a5c996816ab0c7b15dea82a91338ad1' verify.txt
+
+          "$BT/aapt" dump badging WamBam_Alpha_9.0.0_4x6_Large_Icons.apk | tee badging.txt
+          grep -q "package: name='com.macca.wambamthankumam' versionCode='90000' versionName='9.0.0'" badging.txt
+
+          unzip -p WamBam_Alpha_9.0.0_4x6_Large_Icons.apk assets/www/code2.js > embedded-code2.js
+          node --check embedded-code2.js
+          grep -q 'const BOARD_COLS = 4' embedded-code2.js
+          grep -q 'const BOARD_ROWS = 6' embedded-code2.js
+          unzip -l WamBam_Alpha_9.0.0_4x6_Large_Icons.apk | grep -q 'assets/www/game_background_90.png'
+
+          sha256sum WamBam_Alpha_9.0.0_4x6_Large_Icons.apk > WamBam_Alpha_9.0.0_SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WamBam-Alpha-9.0.0-APK
+          path: |
+            WamBam_Alpha_9.0.0_4x6_Large_Icons.apk
+            WamBam_Alpha_9.0.0_SHA256SUMS.txt
+            badging.txt
+            verify.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish verified Alpha 9.0 release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v9.0.0
+          name: Wam Bam Alpha 9.0.0 — 4 x 6 Large Icons
+          prerelease: true
+          body_path: downloads/alpha-9.0.0/RELEASE_NOTES.md
+          files: |
+            WamBam_Alpha_9.0.0_4x6_Large_Icons.apk
+            WamBam_Alpha_9.0.0_SHA256SUMS.txt

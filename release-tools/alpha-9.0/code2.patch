@@ -1,0 +1,370 @@
+--- code2.js
++++ code2.js
+@@ -19,37 +19,42 @@
+       {key:"disco", img:"tile_disco_new.png", special:true}
+     ];
+
++  // Alpha 9.0 uses a portrait-friendly 4 x 6 board on every level.
++  // Centralising the dimensions keeps matches, boosters and cascades in sync.
++  const BOARD_COLS = 4;
++  const BOARD_ROWS = 6;
++
+   const LEVEL_CONFIGS = {
+     1: {
+       moves: 16,
+-      background: "game_background_new.jpg",
++      background: "game_background_90.png",
+       targets: {cherries:30, diamond:18, star:20}
+     },
+     2: {
+       moves: 16,
+-      background: "level_2_background.png",
++      background: "game_background_90.png",
+       targets: {cherries:34, diamond:21, star:23}
+     },
+     3: {
+       moves: 18,
+-      background: "level_3_background.png",
++      background: "game_background_90.png",
+       targets: {heart:28, bam:22, disco:6}
+     },
+     4: {
+       moves: 20,
+-      background: "level_4_background.png",
++      background: "game_background_90.png",
+       targets: {cherries:32, diamond:24, star:26}
+     },
+     5: {
+       moves: 24,
+-      background: "level_5_background.png",
++      background: "game_background_90.png",
+       targets: {handbag:8, heart:24, diamond:22}
+     }
+   };
+
+   const LEVEL_5_HANDBAGS = [
+-    [0,2],[0,5],[2,0],[2,7],
+-    [4,2],[4,5],[6,0],[6,7]
++    [0,1],[0,2],[2,0],[2,3],
++    [3,0],[3,3],[5,1],[5,2]
+   ];
+
+   const levelConfig = level => LEVEL_CONFIGS[level] || LEVEL_CONFIGS[1];
+@@ -335,31 +340,35 @@
+     st.livesEl = label(87.3,9.05,8.0,3.7);
+     st.livesEl.style.fontSize = "clamp(17px,2.55vw,27px)";
+     st.livesEl.style.lineHeight = "1";
++    // The unified level artwork intentionally removes the coin and heart tabs.
++    // Keep their game state/rewards intact, but do not draw orphaned numbers.
++    st.coinsEl.style.display = "none";
++    st.livesEl.style.display = "none";
+
+-    const targetRows = [25.1,29.0,32.9];
++    // The unified artwork moves the target panel from the left edge to the
++    // upper-right, so all levels now supply their live target icons here.
++    const targetRows = [8.0,11.8,15.6];
+     st.targetEls = {};
+     st.targetKeys.forEach((key,index) => {
+-      if (st.level === 3 || st.level === 5) {
+-        const icon = document.createElement("img");
+-        icon.src = key === "handbag"
+-          ? "handbag_open.png"
+-          : PIECES.find(piece => piece.key === key).img;
+-        Object.assign(icon.style, {
+-          position: "absolute",
+-          left: "5.8%",
+-          top: `${targetRows[index] - .8}%`,
+-          width: "7%",
+-          height: "3.6%",
+-          objectFit: key === "disco" ? "cover" : "contain",
+-          objectPosition: "center",
+-          transform: key === "disco" ? "scale(1.28)" : key === "handbag" ? "scale(1.18)" : "none",
+-          filter: "drop-shadow(0 2px 1px rgba(0,0,0,.35))",
+-          zIndex: "3",
+-          pointerEvents: "none"
+-        });
+-        root.appendChild(icon);
+-      }
+-      st.targetEls[key] = label(13.0,targetRows[index] - .25,7.2,2.5,"#171717");
++      const icon = document.createElement("img");
++      icon.src = key === "handbag"
++        ? "handbag_open.png"
++        : PIECES.find(piece => piece.key === key).img;
++      Object.assign(icon.style, {
++        position: "absolute",
++        left: "79.0%",
++        top: `${targetRows[index] - .8}%`,
++        width: "6.4%",
++        height: "3.6%",
++        objectFit: key === "disco" ? "cover" : "contain",
++        objectPosition: "center",
++        transform: key === "disco" ? "scale(1.22)" : key === "handbag" ? "scale(1.12)" : "none",
++        filter: "drop-shadow(0 2px 1px rgba(0,0,0,.35))",
++        zIndex: "3",
++        pointerEvents: "none"
++      });
++      root.appendChild(icon);
++      st.targetEls[key] = label(86.2,targetRows[index] - .25,8.4,2.5,"#171717");
+     });
+     Object.values(st.targetEls).forEach(x => {
+       x.style.fontSize = "clamp(15px,2.25vw,24px)";
+@@ -367,13 +376,11 @@
+       x.style.textShadow = "0 1px 0 #fff,0 0 3px rgba(255,255,255,.7)";
+     });
+
+-    const boardLayout = st.level === 1
+-      ? {left:14.1, top:38.0, width:74.0, height:45.7}
+-      : st.level === 4
+-        ? {left:14.0, top:38.4, width:74.8, height:47.5}
+-        : st.level === 5
+-          ? {left:14.1, top:38.7, width:74.7, height:47.0}
+-        : {left:14.2, top:38.6, width:75.2, height:46.8};
++    // Centre the existing 8x8 gameplay grid inside the taller unified board.
++    // A single layout now applies to every level because they share artwork.
++    // Square cells make the larger icons crisp while the full 4 x 6 board
++    // remains safely inside the parchment frame on every screen size.
++    const boardLayout = {left:17.0, top:24.0, width:66.0, height:55.7};
+     const board = box(
+       boardLayout.left,
+       boardLayout.top,
+@@ -382,8 +389,8 @@
+     );
+     board.style.background="transparent";
+     board.style.display = "grid";
+-    board.style.gridTemplateColumns = "repeat(8,1fr)";
+-    board.style.gridTemplateRows = "repeat(8,1fr)";
++    board.style.gridTemplateColumns = `repeat(${BOARD_COLS},1fr)`;
++    board.style.gridTemplateRows = `repeat(${BOARD_ROWS},1fr)`;
+     board.style.gap = "0";
+     board.style.transition = "all 180ms ease";
+     board.style.padding = "0";
+@@ -556,8 +563,8 @@
+
+     async function animateSwap(a,b) {
+       const buttons = board.children;
+-      const first = buttons[a.r * 8 + a.c];
+-      const second = buttons[b.r * 8 + b.c];
++      const first = buttons[a.r * BOARD_COLS + a.c];
++      const second = buttons[b.r * BOARD_COLS + b.c];
+       if (!first || !second) return;
+
+       const dx = (b.c - a.c) * 100;
+@@ -584,7 +591,7 @@
+     async function animateMatched(cells) {
+       const buttons = board.children;
+       for (const p of cells) {
+-        const el = buttons[p.r * 8 + p.c];
++        const el = buttons[p.r * BOARD_COLS + p.c];
+         if (!el) continue;
+         el.style.animation = "wamMatchPulse 260ms cubic-bezier(.2,.8,.2,1) forwards";
+       }
+@@ -1116,7 +1123,7 @@
+         for (const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+           const r = cell.r + dr;
+           const c = cell.c + dc;
+-          if (r >= 0 && r < 8 && c >= 0 && c < 8 && hasHandbag(r,c)) {
++          if (r >= 0 && r < BOARD_ROWS && c >= 0 && c < BOARD_COLS && hasHandbag(r,c)) {
+             keys.push(handbagKey(r,c));
+           }
+         }
+@@ -1141,19 +1148,19 @@
+         return found;
+       };
+
+-      for (let r = 0; r < 8; r++) {
+-        for (let c = 0; c < 8; c++) {
+-          if (c < 7 && swapCreatesMatch(r,c,r,c+1)) return true;
+-          if (r < 7 && swapCreatesMatch(r,c,r+1,c)) return true;
++      for (let r = 0; r < BOARD_ROWS; r++) {
++        for (let c = 0; c < BOARD_COLS; c++) {
++          if (c < BOARD_COLS - 1 && swapCreatesMatch(r,c,r,c+1)) return true;
++          if (r < BOARD_ROWS - 1 && swapCreatesMatch(r,c,r+1,c)) return true;
+         }
+       }
+       return false;
+     }
+
+     function makeBoard() {
+-      st.board = Array.from({length:8}, () => Array(8).fill(0));
+-      for (let r=0;r<8;r++) {
+-        for (let c=0;c<8;c++) {
++      st.board = Array.from({length:BOARD_ROWS}, () => Array(BOARD_COLS).fill(0));
++      for (let r=0;r<BOARD_ROWS;r++) {
++        for (let c=0;c<BOARD_COLS;c++) {
+           let v, tries=0;
+           do {
+             v = randomNormalPiece();
+@@ -1191,8 +1198,8 @@
+       const groups = [];
+       const discoIndex = PIECES.findIndex(piece => piece.key === "disco");
+
+-      for (let r=0; r<7; r++) {
+-        for (let c=0; c<7; c++) {
++      for (let r=0; r<BOARD_ROWS - 1; r++) {
++        for (let c=0; c<BOARD_COLS - 1; c++) {
+           const value = matchValue(r,c);
+           if (value === null || value === discoIndex) continue;
+           if (matchValue(r,c+1) === value &&
+@@ -1216,13 +1223,13 @@
+       };
+
+       // HORIZONTAL: left to right across each row.
+-      for (let r = 0; r < 8; r++) {
++      for (let r = 0; r < BOARD_ROWS; r++) {
+         let c = 0;
+-        while (c < 8) {
++        while (c < BOARD_COLS) {
+           const value = matchValue(r,c);
+           let end = c + 1;
+
+-          while (end < 8 && matchValue(r,end) === value) end++;
++          while (end < BOARD_COLS && matchValue(r,end) === value) end++;
+
+           if (value !== null && end - c >= 3) {
+             for (let x = c; x < end; x++) addCell(r, x);
+@@ -1235,13 +1242,13 @@
+       // VERTICAL: top to bottom down each column.
+       // This covers matching upward or downward because the same
+       // connected vertical line is detected regardless of swap direction.
+-      for (let c = 0; c < 8; c++) {
++      for (let c = 0; c < BOARD_COLS; c++) {
+         let r = 0;
+-        while (r < 8) {
++        while (r < BOARD_ROWS) {
+           const value = matchValue(r,c);
+           let end = r + 1;
+
+-          while (end < 8 && matchValue(end,c) === value) end++;
++          while (end < BOARD_ROWS && matchValue(end,c) === value) end++;
+
+           if (value !== null && end - r >= 3) {
+             for (let y = r; y < end; y++) addCell(y, c);
+@@ -1264,12 +1271,12 @@
+       const groups = [];
+
+       // Horizontal runs of 6 or more.
+-      for (let r = 0; r < 8; r++) {
++      for (let r = 0; r < BOARD_ROWS; r++) {
+         let c = 0;
+-        while (c < 8) {
++        while (c < BOARD_COLS) {
+           const value = matchValue(r,c);
+           let end = c + 1;
+-          while (end < 8 && matchValue(r,end) === value) end++;
++          while (end < BOARD_COLS && matchValue(r,end) === value) end++;
+           if (value !== null && value !== PIECES.findIndex(p=>p.key==="disco") && end - c >= 6) {
+             groups.push(Array.from({length:end-c}, (_,i)=>({r:r,c:c+i})));
+           }
+@@ -1278,12 +1285,12 @@
+       }
+
+       // Vertical runs of 6 or more.
+-      for (let c = 0; c < 8; c++) {
++      for (let c = 0; c < BOARD_COLS; c++) {
+         let r = 0;
+-        while (r < 8) {
++        while (r < BOARD_ROWS) {
+           const value = matchValue(r,c);
+           let end = r + 1;
+-          while (end < 8 && matchValue(end,c) === value) end++;
++          while (end < BOARD_ROWS && matchValue(end,c) === value) end++;
+           if (value !== null && value !== PIECES.findIndex(p=>p.key==="disco") && end - r >= 6) {
+             groups.push(Array.from({length:end-r}, (_,i)=>({r:r+i,c:c})));
+           }
+@@ -1307,7 +1314,7 @@
+     async function settleColumns(columns=null) {
+       const cols = columns && columns.length
+         ? [...new Set(columns)]
+-        : [0,1,2,3,4,5,6,7];
++        : Array.from({length:BOARD_COLS},(_,i)=>i);
+
+       // Candy-Crush-style loop:
+       // move pieces down one cell, draw it, then generate at the top.
+@@ -1318,7 +1325,7 @@
+
+         // Move existing pieces down exactly one row where a blank is underneath.
+         for (const c of cols) {
+-          for (let r = 7; r >= 1; r--) {
++          for (let r = BOARD_ROWS - 1; r >= 1; r--) {
+             if (st.board[r][c] === null && st.board[r-1][c] !== null) {
+               st.board[r][c] = st.board[r-1][c];
+               st.board[r-1][c] = null;
+@@ -1371,11 +1378,13 @@
+     }
+
+     function collapse(columns=null) {
+-      const cols=columns&&columns.length?[...new Set(columns)]:[0,1,2,3,4,5,6,7];
++      const cols=columns&&columns.length
++        ? [...new Set(columns)]
++        : Array.from({length:BOARD_COLS},(_,i)=>i);
+       const moves=[];
+       for(const col of cols){
+-        let write=7;
+-        for(let r=7;r>=0;r--){
++        let write=BOARD_ROWS - 1;
++        for(let r=BOARD_ROWS - 1;r>=0;r--){
+           if(st.board[r][col]!==null){
+             const value=st.board[r][col];
+             if(write!==r){
+@@ -1469,8 +1478,8 @@
+
+       if (!hasMove()) {
+         const vals = st.board.flat().sort(() => Math.random() - .5);
+-        for (let r=0;r<8;r++) {
+-          for (let c=0;c<8;c++) st.board[r][c] = vals[r*8+c];
++        for (let r=0;r<BOARD_ROWS;r++) {
++          for (let c=0;c<BOARD_COLS;c++) st.board[r][c] = vals[r*BOARD_COLS+c];
+         }
+         showToast("RESHUFFLE!");
+       }
+@@ -1527,8 +1536,8 @@
+             st.moves = Math.max(0, st.moves - 1);
+
+             const converted = [];
+-            for (let rr=0; rr<8; rr++) {
+-              for (let cc=0; cc<8; cc++) {
++            for (let rr=0; rr<BOARD_ROWS; rr++) {
++              for (let cc=0; cc<BOARD_COLS; cc++) {
+                 if (!hasHandbag(rr,cc) && st.board[rr][cc] === targetValue) converted.push({r:rr,c:cc});
+               }
+             }
+@@ -1591,13 +1600,11 @@
+         if (st.boosters.rocket <= 0) return;
+         st.boosters.rocket--;
+         damageHandbags([
+-          ...Array.from({length:8},(_,i)=>handbagKey(r,i)),
+-          ...Array.from({length:8},(_,i)=>handbagKey(i,c))
++          ...Array.from({length:BOARD_COLS},(_,i)=>handbagKey(r,i)),
++          ...Array.from({length:BOARD_ROWS},(_,i)=>handbagKey(i,c))
+         ]);
+-        for (let i=0;i<8;i++) {
+-          st.board[r][i] = null;
+-          st.board[i][c] = null;
+-        }
++        for (let i=0;i<BOARD_COLS;i++) st.board[r][i] = null;
++        for (let i=0;i<BOARD_ROWS;i++) st.board[i][c] = null;
+         st.booster = null;
+         render();
+         await settleColumns();
+@@ -1609,8 +1616,8 @@
+         if (st.boosters.disco <= 0) return;
+         st.boosters.disco--;
+         const value = st.board[r][c];
+-        for (let rr=0;rr<8;rr++) {
+-          for (let cc=0;cc<8;cc++) {
++        for (let rr=0;rr<BOARD_ROWS;rr++) {
++          for (let cc=0;cc<BOARD_COLS;cc++) {
+             if (!hasHandbag(rr,cc) && st.board[rr][cc] === value) st.board[rr][cc] = null;
+           }
+         }
+@@ -1719,8 +1726,8 @@
+       });
+
+       board.innerHTML="";
+-      for(let r=0;r<8;r++) {
+-        for(let c=0;c<8;c++) {
++      for(let r=0;r<BOARD_ROWS;r++) {
++        for(let c=0;c<BOARD_COLS;c++) {
+           const b=document.createElement("button");
+           b.type="button";
+           b.style.margin="0";

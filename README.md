@@ -2,13 +2,24 @@
 
 Native Android match-3 game in Alpha.
 
-## Latest gameplay update - Alpha 8.1.0
+## Latest gameplay update — Alpha 9.0.0
 
-Alpha 8.1.0 replaces the gameplay background on Levels 1 to 5 with the new sharp 4K artwork. The current 8 cells across by 11 cells down match grid stays in place, with gameplay pieces rendered separately over the artwork so the background stays clean and sharp.
+- [Download Wam Bam Alpha 9.0.0 for Android](https://github.com/maccabluu/WamBamThankUMam/releases/download/v9.0.0/WamBam_Alpha_9.0.0_4x6_Large_Icons.apk)
+- [Read the Alpha 9.0.0 release notes](downloads/alpha-9.0.0/RELEASE_NOTES.md)
 
-The build keeps the Alpha 8 layout changes, including the removed Coins and Hearts gameplay tabs, repositioned Moves and Target panels, resized gameplay icons, updated cascades, reshuffles, boosters and Level 5 handbag blockers.
+Alpha 9.0.0 changes Levels 1–5 to a clear 4-across by 6-down board. The pieces are much larger, the cells stay square, and the complete board is centred inside the parchment frame on every level.
 
-Alpha 8.1.0 uses Android versionCode `80100`, versionName `8.1.0`, package `com.macca.wambamthankumam`, and the permanent Wam Bam signing key so it is built as an update to the existing app.
+Match checking, swaps, cascades, drops, reshuffles, all four boosters and Level 5 handbag blockers now use the new board dimensions. Reducing the live board from 64 pieces to 24 also lowers rendering work for smoother gameplay.
+
+The updated lounge background remains on every level, with the old Coins and Hearts gameplay tabs removed and the live Moves and Target information aligned to the new upper panels.
+
+Alpha 9.0.0 uses Android versionCode `90000`, versionName `9.0.0`, package `com.macca.wambamthankumam`, and the permanent Wam Bam signing key so it installs as an update to the existing app.
+
+## Previous update — Alpha 8.1.1
+
+- [Download the Alpha 8.1.1 background hotfix](https://github.com/maccabluu/WamBamThankUMam/releases/download/v8.1.1/WamBam_Alpha_8.1.1_Background_Hotfix.apk)
+
+Alpha 8.1.1 restored the sharp gameplay background on Levels 1–5 while retaining the Alpha 8 board and layout changes.
 
 ## Previous update - Alpha 8.0.0
 
