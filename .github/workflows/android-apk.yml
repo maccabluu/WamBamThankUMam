@@ -9,6 +9,9 @@ on:
       - "downloads/alpha-8.0.0/**"
       - "inspection_extract/**"
       - "inspection_level1.txt"
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -136,6 +139,7 @@ jobs:
           retention-days: 30
 
       - name: Commit tested APK to branch
+        if: github.event_name == 'push'
         shell: bash
         run: |
           git config user.name "BluStudio Build Bot"
