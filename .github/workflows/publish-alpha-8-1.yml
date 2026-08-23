@@ -67,20 +67,17 @@ jobs:
 
           python3 - <<'PY'
           from pathlib import Path
-
           p = Path('work/assets/www/code2.js')
           s = p.read_text()
-          old_names = [
+          for old in [
               'game_background_new.jpg',
               'level_1_background.png',
               'level_2_background.png',
               'level_3_background.png',
               'level_4_background.png',
               'level_5_background.png',
-          ]
-          for old in old_names:
+          ]:
               s = s.replace(old, 'game_background_81.webp')
-
           if s.count('background: "game_background_81.webp"') < 5:
               raise SystemExit('All five level backgrounds were not replaced')
           p.write_text(s)
