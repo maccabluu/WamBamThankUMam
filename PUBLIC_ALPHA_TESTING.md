@@ -1,4 +1,4 @@
-# Wam Bam Thank U Mam Public Alpha 7.9.0
+# Wam Bam Thank U Mam Public Alpha 9.3.0
 
 This build is for public testing.
 
@@ -10,6 +10,9 @@ This build is for public testing.
 - Road Map
 - Road Map ball/base alignment and upward scrolling
 - Levels 1–5
+- Full-height 6 × 10 board on every level
+- Lenovo Tab P12 Pro and wider Android tablet screen scaling
+- Drag/swipe icon movement and touch-target alignment
 - Match-3 gameplay
 - Level 4 Frozen Lounge performance
 - Level 5 chained handbags: locked → open → cleared
@@ -38,4 +41,4 @@ This build is for public testing.
 - What you pressed before the problem happened
 - Screenshot or screen recording if possible
 
-Build base: Alpha 7.9.0
+Build base: Alpha 9.3.0
