@@ -1,0 +1,2 @@
+f05cde7678dbcaf82d93da84f4c2570084d99d8842e6e47c5cf2159c19b6ff26  WamBam_Alpha_7.9.0_Events_And_Navigation.apk
+d9185b90d4c8d3ebb99f83351bd932fd4226810cc37de40262a2e976b654e34b  WamBam_GDevelop_Alpha_7.9.0_Events_And_Navigation_Source.zip

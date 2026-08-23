@@ -1,15 +1,21 @@
-# Wam Bam Thank U Mam Public Alpha 7.8.0
+# Wam Bam Thank U Mam Public Alpha 7.9.0
 
 This build is for public testing.
 
 ## Current test scope
 
 - Home screen
+- Home return from gameplay and the Road Map
+- Home wink and character movement
 - Road Map
+- Road Map ball/base alignment and upward scrolling
 - Levels 1–5
 - Match-3 gameplay
 - Level 4 Frozen Lounge performance
 - Level 5 chained handbags: locked → open → cleared
+- Daily Spotlight, Match Mania and Couture Rescue events
+- Android event-notification permission and reminder
+- Audio stopping when the app is backgrounded or closed
 - Disco creation and Disco icon conversion
 - Settings screen
 - Built-in update checker
@@ -32,4 +38,4 @@ This build is for public testing.
 - What you pressed before the problem happened
 - Screenshot or screen recording if possible
 
-Build base: Alpha 7.8.0
+Build base: Alpha 7.9.0

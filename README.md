@@ -2,15 +2,15 @@
 
 Native Android match-3 game in Alpha.
 
-## Latest GDevelop build — Alpha 7.8.0
+## Latest GDevelop build — Alpha 7.9.0
 
-- [Download the Android APK](downloads/alpha-7.8.0/WamBam_Alpha_7.8.0_Level5_Couture_Vault.apk)
-- [Download the editable GDevelop source](downloads/alpha-7.8.0/WamBam_GDevelop_Alpha_7.8.0_Level5_Couture_Vault_Source.zip)
-- [Read the Alpha 7.8.0 release notes](downloads/alpha-7.8.0/RELEASE_NOTES.md)
+- [Download the Android APK](downloads/alpha-7.9.0/WamBam_Alpha_7.9.0_Events_And_Navigation.apk)
+- [Download the editable GDevelop source](downloads/alpha-7.9.0/WamBam_GDevelop_Alpha_7.9.0_Events_And_Navigation_Source.zip)
+- [Read the Alpha 7.9.0 release notes](downloads/alpha-7.9.0/RELEASE_NOTES.md)
 
-Alpha 7.8.0 adds the new Level 5 Couture Vault with eight two-stage chained handbag blockers. Match beside a handbag once to open it, then match beside it again to clear it, earn coins and update the target. The update also fits the Home coin/life/level numbers, realigns the wink, fits all Settings controls, shrinks the Road Map level balls onto their gold pads, and extends the moving journey and saved progression through Level 5.
+Alpha 7.9.0 repairs the complete Home return flow from gameplay and the Road Map, fits the Road Map balls precisely inside their gold bases, aligns the Home movement and wink animation, and contains the Level 5 handbag icons inside their tiles. Music and sound effects now pause when Android backgrounds or closes the app.
 
-Levels 1–5, the frozen Level 4 theme, music and sound effects, Disco conversions, curtain transitions, the BluStudio loader, app icon, updater and saved coins/lives remain included.
+The Home Events button now opens three working daily activities: Daily Spotlight, Match Mania and Couture Rescue. They track play, award saved coins and can enable Android local reminders. Levels 1–5, the frozen Level 4 theme, Couture Vault blockers, Disco conversions, curtain transitions, BluStudio loader, updater and saved progress remain included.
 
 Package: `com.macca.wambamthankumam`
 
