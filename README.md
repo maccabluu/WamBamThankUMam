@@ -2,15 +2,15 @@
 
 Native Android match-3 game in Alpha.
 
-## Latest GDevelop build — Alpha 7.9.0
+## Latest gameplay update - Alpha 8.0.0
 
-- [Download the Android APK](downloads/alpha-7.9.0/WamBam_Alpha_7.9.0_Events_And_Navigation.apk)
-- [Download the editable GDevelop source](downloads/alpha-7.9.0/WamBam_GDevelop_Alpha_7.9.0_Events_And_Navigation_Source.zip)
-- [Read the Alpha 7.9.0 release notes](downloads/alpha-7.9.0/RELEASE_NOTES.md)
+- [Read the Alpha 8.0.0 release notes](downloads/alpha-8.0.0/RELEASE_NOTES.md)
+- [Previous Alpha 7.9.0 Android APK](downloads/alpha-7.9.0/WamBam_Alpha_7.9.0_Events_And_Navigation.apk)
+- [Previous Alpha 7.9.0 editable GDevelop source](downloads/alpha-7.9.0/WamBam_GDevelop_Alpha_7.9.0_Events_And_Navigation_Source.zip)
 
-Alpha 7.9.0 repairs the complete Home return flow from gameplay and the Road Map, fits the Road Map balls precisely inside their gold bases, aligns the Home movement and wink animation, and contains the Level 5 handbag icons inside their tiles. Music and sound effects now pause when Android backgrounds or closes the app.
+Alpha 8.0.0 updates Levels 1 to 5 with the new lounge gameplay background. The old Coins and Hearts gameplay HUD readouts are removed, Moves and Target information are repositioned, and the board now matches the taller artwork with 8 cells across and 11 cells down. Match checking, drops, cascades, reshuffles, boosters and Level 5 handbag blockers were updated for the expanded board. Gameplay icons were resized to sit inside the new grid cells.
 
-The Home Events button now opens three working daily activities: Daily Spotlight, Match Mania and Couture Rescue. They track play, award saved coins and can enable Android local reminders. Levels 1–5, the frozen Level 4 theme, Couture Vault blockers, Disco conversions, curtain transitions, BluStudio loader, updater and saved progress remain included.
+Alpha 7.9.0 repaired the complete Home return flow from gameplay and the Road Map, aligned the Road Map and Home animations, improved Level 5 handbag tile placement, paused audio when Android backgrounds the app, and added three working daily Events activities.
 
 Package: `com.macca.wambamthankumam`
 
