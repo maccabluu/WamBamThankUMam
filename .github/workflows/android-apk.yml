@@ -1,4 +1,4 @@
-name: Extract Real Wam Bam APK Source
+name: Build Real Wam Bam Level 1 APK
 
 on:
   workflow_dispatch:
@@ -6,6 +6,7 @@ on:
     branches:
       - level1-apk-8-0
     paths-ignore:
+      - "downloads/alpha-8.0.0/**"
       - "inspection_extract/**"
       - "inspection_level1.txt"
 
@@ -13,9 +14,9 @@ permissions:
   contents: write
 
 jobs:
-  extract:
+  build-real-apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -23,49 +24,126 @@ jobs:
         with:
           ref: level1-apk-8-0
 
-      - name: Extract useful source files
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android build tools and image converter
         shell: bash
         run: |
-          set -e
-          rm -rf /tmp/wambam /tmp/wambam_apk inspection_extract
-          mkdir -p /tmp/wambam /tmp/wambam_apk inspection_extract
-          unzip -q downloads/alpha-7.9.0/WamBam_GDevelop_Alpha_7.9.0_Events_And_Navigation_Source.zip -d /tmp/wambam
-          unzip -q downloads/alpha-7.9.0/WamBam_Alpha_7.9.0_Events_And_Navigation.apk -d /tmp/wambam_apk
-          ROOT="/tmp/wambam/WamBam_GDevelop_Alpha_7.9.0"
-          PROJECT="$ROOT/Wam Bam Thank u Mam.json"
+          sdkmanager "build-tools;35.0.0"
+          sudo apt-get update -qq
+          sudo apt-get install -y imagemagick
 
-          awk 'length($0) < 1200 {print}' "$ROOT/game-overlay.inline.js" > inspection_extract/game-overlay-sanitized.js
-          cp "$ROOT/inject-alpha-7.9.0.mjs" inspection_extract/inject-alpha-7.9.0.mjs
-          cp "$ROOT/7.9.0_UPDATE.txt" inspection_extract/7.9.0_UPDATE.txt
-          jq '.layouts[] | select(.name=="Game")' "$PROJECT" > inspection_extract/game-layout.json
-          jq '[.resources.resources[]? | select(((.name // "") + " " + (.file // "")) | test("game|level|background|tile|coin|heart|target|move|grid|board|lip|heel|disco|swap"; "i"))]' "$PROJECT" > inspection_extract/relevant-resources.json
+      - name: Patch the real GDevelop APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          OLD_APK="downloads/alpha-7.9.0/WamBam_Alpha_7.9.0_Events_And_Navigation.apk"
+          SOURCE_ZIP="downloads/alpha-7.9.0/WamBam_GDevelop_Alpha_7.9.0_Events_And_Navigation_Source.zip"
+          STAGE="/tmp/wambam-stage"
+          SOURCE="/tmp/wambam-source"
+          MODIFIED="/tmp/wambam-modified.apk"
 
-          find /tmp/wambam_apk -type f | sed 's#/tmp/wambam_apk/##' | sort > inspection_extract/apk-files.txt
-          grep -RIl -E 'Wam Bam|game-overlay|Level 1|Level1|grid|board|coin|heart|target|moves|game_background_new' /tmp/wambam_apk 2>/dev/null | sed 's#/tmp/wambam_apk/##' | sort > inspection_extract/apk-relevant-paths.txt || true
-          find . "$ROOT" -type f \( -iname '*.jks' -o -iname '*.keystore' -o -iname '*.p12' -o -iname '*.pem' -o -iname '*sign*' -o -iname '*key*' \) | sort > inspection_extract/signing-files.txt || true
+          rm -rf "$STAGE" "$SOURCE" "$MODIFIED" /tmp/wambam-aligned.apk /tmp/wambam-test.keystore
+          mkdir -p "$STAGE/assets/www" "$SOURCE"
 
-          while IFS= read -r rel; do
-            case "$rel" in
-              *.js|*.html|*.css|*.json)
-                src="/tmp/wambam_apk/$rel"
-                size=$(stat -c%s "$src" 2>/dev/null || echo 99999999)
-                if [ "$size" -lt 900000 ]; then
-                  safe=$(echo "$rel" | tr '/' '_')
-                  awk 'length($0) < 1200 {print}' "$src" > "inspection_extract/apk_${safe}"
-                fi
-                ;;
-            esac
-          done < inspection_extract/apk-relevant-paths.txt
+          cp "$OLD_APK" "$MODIFIED"
+          unzip -q "$SOURCE_ZIP" -d "$SOURCE"
+          ROOT="$SOURCE/WamBam_GDevelop_Alpha_7.9.0"
 
-      - name: Commit extracted inspection files
+          unzip -p "$OLD_APK" assets/www/code2.js > "$STAGE/assets/www/code2.js"
+          python3 tools/patch_level1_gdevelop.py "$STAGE/assets/www/code2.js"
+
+          cp "$ROOT/game-overlay.inline.js" /tmp/game-overlay.inline.js
+          python3 tools/patch_level1_gdevelop.py /tmp/game-overlay.inline.js
+
+          convert level1_assets/level1_background_11x11.webp -quality 90 "$STAGE/assets/www/game_background_new.jpg"
+
+          node --check "$STAGE/assets/www/code2.js"
+          grep -q 'boardRowsForLevel = level => level === 1 ? 11 : 8' "$STAGE/assets/www/code2.js"
+          grep -q 'top:21.2, width:74.0, height:62.3' "$STAGE/assets/www/code2.js"
+          grep -q 'st.coinsEl = st.level === 1 ? null' "$STAGE/assets/www/code2.js"
+          grep -q 'st.livesEl = st.level === 1 ? null' "$STAGE/assets/www/code2.js"
+
+          zip -d "$MODIFIED" 'META-INF/*.RSA' 'META-INF/*.DSA' 'META-INF/*.EC' 'META-INF/*.SF' 'META-INF/*.MF' >/dev/null 2>&1 || true
+          (
+            cd "$STAGE"
+            zip -q -u "$MODIFIED" assets/www/code2.js assets/www/game_background_new.jpg
+          )
+
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -f 4 "$MODIFIED" /tmp/wambam-aligned.apk
+
+          keytool -genkeypair -noprompt \
+            -keystore /tmp/wambam-test.keystore \
+            -storepass wambam8 \
+            -keypass wambam8 \
+            -alias wambam \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=BluStudio Wam Bam Test,O=BluStudio,C=GB"
+
+          mkdir -p downloads/alpha-8.0.0
+          OUT="downloads/alpha-8.0.0/WamBam_Alpha_8.0.0_Level1_Grid_Update.apk"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign \
+            --ks /tmp/wambam-test.keystore \
+            --ks-pass pass:wambam8 \
+            --key-pass pass:wambam8 \
+            --out "$OUT" \
+            /tmp/wambam-aligned.apk
+
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$OUT"
+          unzip -tq "$OUT"
+          unzip -p "$OUT" assets/www/code2.js | grep -q 'boardRowsForLevel = level => level === 1 ? 11 : 8'
+          unzip -p "$OUT" assets/www/code2.js | grep -q 'top:21.2, width:74.0, height:62.3'
+          unzip -p "$OUT" assets/www/code2.js | grep -q 'st.coinsEl = st.level === 1 ? null'
+          unzip -p "$OUT" assets/www/code2.js | grep -q 'st.livesEl = st.level === 1 ? null'
+          unzip -p "$OUT" assets/www/game_background_new.jpg > /tmp/level1-background-check.jpg
+          test -s /tmp/level1-background-check.jpg
+
+          sha256sum "$OUT" > downloads/alpha-8.0.0/SHA256SUMS.txt
+          cat > downloads/alpha-8.0.0/RELEASE_NOTES.md <<'EOF'
+          # Wam Bam Alpha 8.0.0 Level 1 Update
+
+          This build updates the real GDevelop Android APK used by Wam Bam.
+
+          Changes:
+          - New Level 1 background.
+          - Level 1 board aligned to the new 11-cell-deep grid artwork.
+          - Coins and hearts HUD removed from Level 1.
+          - Moves kept in the top-left panel.
+          - Level targets moved into the top-right target panel.
+          - Game icons resized to sit inside the new grid cells.
+          - Faster Level 1 falling-piece handling and batched tile rendering.
+          - Lip Laser, Heel Smash, Disco Ball, Swap and Pause areas kept aligned with the new background.
+
+          Install note:
+          This APK is test-signed because the original GDevelop signing key is not stored in this repository. If Android reports a signature conflict, uninstall the older Alpha 7.9.0 build before installing this APK.
+          EOF
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WamBam-Alpha-8.0.0-Level1-APK
+          path: downloads/alpha-8.0.0/WamBam_Alpha_8.0.0_Level1_Grid_Update.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Commit tested APK to branch
         shell: bash
         run: |
           git config user.name "BluStudio Build Bot"
           git config user.email "bigmacblu@gmail.com"
-          git add inspection_extract
+          git add downloads/alpha-8.0.0
           if git diff --cached --quiet; then
-            echo "No extraction changes"
+            echo "APK output already committed"
           else
-            git commit -m "Extract real GDevelop Level 1 source"
+            git commit -m "Build real Wam Bam Alpha 8.0.0 Level 1 APK"
             git push origin HEAD:level1-apk-8-0
           fi
