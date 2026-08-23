@@ -82,3 +82,5 @@ jobs:
           files: |
             WamBam_Alpha_8.0.0_11_Row_Grid_Updated.apk
             WamBam_Alpha_8.0.0_SHA256SUMS.txt
+
+# Triggered again after adding the permanent Wam Bam signing secrets.
