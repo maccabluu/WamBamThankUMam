@@ -1,4 +1,4 @@
-name: Inspect Real Wam Bam APK
+name: Extract Real Wam Bam APK Source
 
 on:
   workflow_dispatch:
@@ -6,16 +6,14 @@ on:
     branches:
       - level1-apk-8-0
     paths-ignore:
+      - "inspection_extract/**"
       - "inspection_level1.txt"
-  pull_request:
-    branches:
-      - main
 
 permissions:
   contents: write
 
 jobs:
-  inspect:
+  extract:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -25,73 +23,49 @@ jobs:
         with:
           ref: level1-apk-8-0
 
-      - name: Inspect real GDevelop source and APK
+      - name: Extract useful source files
         shell: bash
         run: |
           set -e
-          rm -rf /tmp/wambam /tmp/wambam_apk
-          mkdir -p /tmp/wambam /tmp/wambam_apk
+          rm -rf /tmp/wambam /tmp/wambam_apk inspection_extract
+          mkdir -p /tmp/wambam /tmp/wambam_apk inspection_extract
           unzip -q downloads/alpha-7.9.0/WamBam_GDevelop_Alpha_7.9.0_Events_And_Navigation_Source.zip -d /tmp/wambam
           unzip -q downloads/alpha-7.9.0/WamBam_Alpha_7.9.0_Events_And_Navigation.apk -d /tmp/wambam_apk
           ROOT="/tmp/wambam/WamBam_GDevelop_Alpha_7.9.0"
           PROJECT="$ROOT/Wam Bam Thank u Mam.json"
-          REPORT="inspection_level1.txt"
-          : > "$REPORT"
 
-          {
-            echo "== SOURCE ROOT FILES =="
-            find "$ROOT" -maxdepth 2 -type f | sed "s#$ROOT/##" | sort | head -n 250
-            echo
+          awk 'length($0) < 1200 {print}' "$ROOT/game-overlay.inline.js" > inspection_extract/game-overlay-sanitized.js
+          cp "$ROOT/inject-alpha-7.9.0.mjs" inspection_extract/inject-alpha-7.9.0.mjs
+          cp "$ROOT/7.9.0_UPDATE.txt" inspection_extract/7.9.0_UPDATE.txt
+          jq '.layouts[] | select(.name=="Game")' "$PROJECT" > inspection_extract/game-layout.json
+          jq '[.resources.resources[]? | select(((.name // "") + " " + (.file // "")) | test("game|level|background|tile|coin|heart|target|move|grid|board|lip|heel|disco|swap"; "i"))]' "$PROJECT" > inspection_extract/relevant-resources.json
 
-            echo "== PROJECT LAYOUTS =="
-            jq -r '.layouts[]?.name' "$PROJECT"
-            echo
+          find /tmp/wambam_apk -type f | sed 's#/tmp/wambam_apk/##' | sort > inspection_extract/apk-files.txt
+          grep -RIl -E 'Wam Bam|game-overlay|Level 1|Level1|grid|board|coin|heart|target|moves|game_background_new' /tmp/wambam_apk 2>/dev/null | sed 's#/tmp/wambam_apk/##' | sort > inspection_extract/apk-relevant-paths.txt || true
+          find . "$ROOT" -type f \( -iname '*.jks' -o -iname '*.keystore' -o -iname '*.p12' -o -iname '*.pem' -o -iname '*sign*' -o -iname '*key*' \) | sort > inspection_extract/signing-files.txt || true
 
-            echo "== LAYOUT OBJECT NAMES =="
-            jq -r '.layouts[]? | "LAYOUT: \(.name)" , ((.objects // [])[]?.name), "---"' "$PROJECT" | head -n 500
-            echo
+          while IFS= read -r rel; do
+            case "$rel" in
+              *.js|*.html|*.css|*.json)
+                src="/tmp/wambam_apk/$rel"
+                size=$(stat -c%s "$src" 2>/dev/null || echo 99999999)
+                if [ "$size" -lt 900000 ]; then
+                  safe=$(echo "$rel" | tr '/' '_')
+                  awk 'length($0) < 1200 {print}' "$src" > "inspection_extract/apk_${safe}"
+                fi
+                ;;
+            esac
+          done < inspection_extract/apk-relevant-paths.txt
 
-            echo "== RELEVANT RESOURCES =="
-            jq -r '.resources.resources[]? | select(((.name // "") + " " + (.file // "")) | test("game|level|background|tile|coin|heart|target|move|grid|board|lip|heel|disco|swap"; "i")) | [.name,.file] | @tsv' "$PROJECT" | head -n 250
-            echo
-
-            echo "== GAME OVERLAY RELEVANT LINES =="
-            grep -nEi 'level ?1|grid|board|tile|coin|heart|moves|target|cols|rows|lip|heel|disco|swap|background' "$ROOT/game-overlay.inline.js" | head -n 300 || true
-            echo
-
-            echo "== GAME OVERLAY START =="
-            sed -n '1,260p' "$ROOT/game-overlay.inline.js"
-            echo
-
-            echo "== INJECTOR =="
-            sed -n '1,360p' "$ROOT/inject-alpha-7.9.0.mjs"
-            echo
-
-            echo "== APK WEB FILES =="
-            find /tmp/wambam_apk -type f | sed 's#/tmp/wambam_apk/##' | grep -Ei 'assets|www|html|js|css|game|background|level' | head -n 300 || true
-            echo
-
-            echo "== APK RELEVANT TEXT FILES =="
-            grep -RIl -E 'Wam Bam|game-overlay|Level 1|Level1|grid|board|coin|heart|target|moves' /tmp/wambam_apk 2>/dev/null | sed 's#/tmp/wambam_apk/##' | head -n 200 || true
-            echo
-
-            echo "== SIGNING / KEY FILES =="
-            find . "$ROOT" -type f \( -iname '*.jks' -o -iname '*.keystore' -o -iname '*.p12' -o -iname '*.pem' -o -iname '*sign*' -o -iname '*key*' \) | head -n 100 || true
-            echo
-
-            echo "== BUILD / PACKAGE FILES =="
-            find "$ROOT" -maxdepth 3 -type f \( -name 'package.json' -o -name '*.gradle' -o -name 'gradlew' -o -name 'capacitor.config.*' -o -name 'config.xml' -o -name '*.mjs' \) | sed "s#$ROOT/##" | sort | head -n 200
-          } >> "$REPORT"
-
-      - name: Commit inspection report
+      - name: Commit extracted inspection files
         shell: bash
         run: |
           git config user.name "BluStudio Build Bot"
           git config user.email "bigmacblu@gmail.com"
-          git add inspection_level1.txt
+          git add inspection_extract
           if git diff --cached --quiet; then
-            echo "No report changes"
+            echo "No extraction changes"
           else
-            git commit -m "Inspect real GDevelop APK Level 1"
+            git commit -m "Extract real GDevelop Level 1 source"
             git push origin HEAD:level1-apk-8-0
           fi
