@@ -4,10 +4,11 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - main
+      - alpha-8-release-publish
     paths:
       - ".github/workflows/publish-alpha-8.yml"
       - "release-tools/alpha-8.0/**"
+      - "release/alpha-8.0/**"
 
 permissions:
   contents: write
@@ -27,7 +28,7 @@ jobs:
           rm -rf work
           mkdir work
           unzip -q downloads/alpha-7.9.0/WamBam_Alpha_7.9.0_Events_And_Navigation.apk -d work
-          rm -rf work/META-INF
+          rm -f work/META-INF/*.SF work/META-INF/*.RSA work/META-INF/*.DSA work/META-INF/MANIFEST.MF || true
           base64 -d release-tools/alpha-8.0/background.b64 > work/assets/www/game_background_new.jpg
           test "$(sha256sum work/assets/www/game_background_new.jpg | cut -d' ' -f1)" = "1fb765f37f31e59e9b35c1e2d838ed8e7e0ee427d4c6666a1fbc7496a1d9e9be"
           patch work/assets/www/code2.js < release-tools/alpha-8.0/code2.patch
@@ -66,7 +67,7 @@ jobs:
           BT="$ANDROID_HOME/build-tools/35.0.0"
           PASS="$(openssl rand -hex 18)"
           "$BT/zipalign" -f 4 WamBam_Alpha_8.0.0_11_Row_Grid_Updated-unsigned.apk WamBam_Alpha_8.0.0_11_Row_Grid_Updated-aligned.apk
-          keytool -genkeypair -keystore alpha8.keystore -storepass "$PASS" -keypass "$PASS" -alias alpha8 -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=BluStudio Wam Bam Alpha 8, O=BluStudio, C=GB"
+          keytool -genkeypair -noprompt -keystore alpha8.keystore -storepass "$PASS" -keypass "$PASS" -alias alpha8 -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=BluStudio Wam Bam Alpha 8, O=BluStudio, C=GB"
           "$BT/apksigner" sign --ks alpha8.keystore --ks-pass "pass:$PASS" --key-pass "pass:$PASS" --out WamBam_Alpha_8.0.0_11_Row_Grid_Updated.apk WamBam_Alpha_8.0.0_11_Row_Grid_Updated-aligned.apk
           "$BT/apksigner" verify --verbose WamBam_Alpha_8.0.0_11_Row_Grid_Updated.apk
           sha256sum WamBam_Alpha_8.0.0_11_Row_Grid_Updated.apk > WamBam_Alpha_8.0.0_SHA256SUMS.txt
