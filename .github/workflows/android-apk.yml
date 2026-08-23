@@ -25,6 +25,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Inspect current GDevelop APK source
+        run: |
+          rm -rf /tmp/wambam
+          mkdir -p /tmp/wambam
+          unzip -q downloads/alpha-7.9.0/WamBam_GDevelop_Alpha_7.9.0_Events_And_Navigation_Source.zip -d /tmp/wambam
+          echo "== TOP LEVEL FILES =="
+          find /tmp/wambam -maxdepth 3 -type f | sort | head -n 300
+          echo "== PROJECT / BUILD FILES =="
+          find /tmp/wambam -type f \( -name '*.json' -o -name '*.js' -o -name '*.html' -o -name '*.xml' -o -name '*.gradle' -o -name '*.properties' \) | sort | head -n 500
+          echo "== WAM BAM SOURCE MATCHES =="
+          grep -RIl -E 'com\.macca\.wambamthankumam|70900|Level 1|Level1|coins|hearts|grid' /tmp/wambam | head -n 250 || true
+
       - name: Check Level 1 JavaScript
         run: node --check app/src/main/assets/game11.js
 
