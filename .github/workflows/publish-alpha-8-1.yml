@@ -66,8 +66,13 @@ jobs:
 
           patch work/assets/www/code2.js < release-tools/alpha-8.0/code2.patch
 
-          # Convert the supplied sharp WebP artwork to JPEG for reliable Android WebView rendering.
-          ffmpeg -hide_banner -loglevel error -y -i release-tools/alpha-8.1/game_background_81.webp -q:v 2 work/assets/www/game_background_81.jpg
+          # The committed .webp payload is Base64 text, not raw WebP bytes.
+          # Decode it first, then convert the real image to JPEG for Android WebView reliability.
+          base64 -d release-tools/alpha-8.1/game_background_81.webp > game_background_81.decoded.webp
+          test -s game_background_81.decoded.webp
+          file game_background_81.decoded.webp
+          ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height -of default=noprint_wrappers=1 game_background_81.decoded.webp
+          ffmpeg -hide_banner -loglevel error -y -i game_background_81.decoded.webp -q:v 2 work/assets/www/game_background_81.jpg
 
           python3 - <<'PY'
           from pathlib import Path
@@ -104,7 +109,6 @@ jobs:
 
           java -jar apktool.jar b work -o WamBam_Alpha_8.1.1_Background_Hotfix-unsigned.apk
 
-          # Refuse to continue if the final rebuilt APK does not actually contain the background.
           unzip -l WamBam_Alpha_8.1.1_Background_Hotfix-unsigned.apk | tee apk-files.txt
           grep -q 'assets/www/game_background_81.jpg' apk-files.txt
 
@@ -162,7 +166,7 @@ jobs:
             Alpha 8.1.1 background hotfix
 
             - Fixes the black gameplay screen seen in Alpha 8.1.0.
-            - Converts the supplied sharp 2160 x 3840 gameplay artwork to JPEG for reliable Android WebView rendering.
+            - Decodes the stored 2160 x 3840 artwork correctly and packages a real JPEG background.
             - Uses the same artwork on Levels 1 to 5.
             - Keeps the 8 x 11 match grid, targets, pieces and boosters in their Alpha 8 layout.
             - Uses the permanent Wam Bam Android signing key for update compatibility.
