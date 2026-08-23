@@ -8,6 +8,7 @@ on:
       - ".github/workflows/publish-alpha-8-1.yml"
       - "release-tools/alpha-8.1/**"
       - "release-tools/alpha-8.0/code2.patch"
+      - "release-tools/alpha-8.0/background.b64"
 
 permissions:
   contents: write
@@ -38,7 +39,7 @@ jobs:
           sudo apt-get install -y ffmpeg
           curl -L --fail --retry 3 -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v2.11.1/apktool_2.11.1.jar
 
-      - name: Build Alpha 8.1.1 background hotfix
+      - name: Build Alpha 8.1.1 black-screen recovery
         shell: bash
         run: |
           set -euo pipefail
@@ -66,13 +67,12 @@ jobs:
 
           patch work/assets/www/code2.js < release-tools/alpha-8.0/code2.patch
 
-          # The committed .webp payload is Base64 text, not raw WebP bytes.
-          # Decode it first, then convert the real image to JPEG for Android WebView reliability.
-          base64 -d release-tools/alpha-8.1/game_background_81.webp > game_background_81.decoded.webp
-          test -s game_background_81.decoded.webp
-          file game_background_81.decoded.webp
-          ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height -of default=noprint_wrappers=1 game_background_81.decoded.webp
-          ffmpeg -hide_banner -loglevel error -y -i game_background_81.decoded.webp -q:v 2 work/assets/www/game_background_81.jpg
+          # Recover from the broken/truncated Alpha 8.1 WebP using the last verified
+          # gameplay artwork, then rebuild it at 2160x3840 with Lanczos scaling and sharpening.
+          base64 -d release-tools/alpha-8.0/background.b64 > game_background_81_source.jpg
+          test -s game_background_81_source.jpg
+          ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height -of default=noprint_wrappers=1 game_background_81_source.jpg
+          ffmpeg -hide_banner -loglevel error -y -i game_background_81_source.jpg -vf "scale=2160:3840:flags=lanczos,unsharp=5:5:0.85:5:5:0.0" -q:v 1 work/assets/www/game_background_81.jpg
 
           python3 - <<'PY'
           from pathlib import Path
@@ -89,7 +89,7 @@ jobs:
           ]:
               s = s.replace(old, 'game_background_81.jpg')
           if s.count('background: "game_background_81.jpg"') < 5:
-              raise SystemExit('All five level backgrounds were not replaced with JPEG')
+              raise SystemExit('All five level backgrounds were not assigned')
           p.write_text(s)
           PY
 
@@ -101,8 +101,8 @@ jobs:
           grep -q 'versionName: 8.1.1' work/apktool.yml
           test -s work/assets/www/game_background_81.jpg
 
-          WIDTH="$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=s=x:p=0 work/assets/www/game_background_81.jpg)"
-          HEIGHT="$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=s=x:p=0 work/assets/www/game_background_81.jpg)"
+          WIDTH="$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 work/assets/www/game_background_81.jpg)"
+          HEIGHT="$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 work/assets/www/game_background_81.jpg)"
           echo "Gameplay background dimensions: ${WIDTH}x${HEIGHT}"
           test "$WIDTH" = "2160"
           test "$HEIGHT" = "3840"
@@ -165,10 +165,10 @@ jobs:
           body: |
             Alpha 8.1.1 background hotfix
 
-            - Fixes the black gameplay screen seen in Alpha 8.1.0.
-            - Decodes the stored 2160 x 3840 artwork correctly and packages a real JPEG background.
-            - Uses the same artwork on Levels 1 to 5.
-            - Keeps the 8 x 11 match grid, targets, pieces and boosters in their Alpha 8 layout.
+            - Fixes the black gameplay screen from Alpha 8.1.0.
+            - Rebuilds the gameplay background as a real 2160 x 3840 JPEG.
+            - Uses the gameplay artwork on Levels 1 to 5.
+            - Keeps the 8 x 11 match grid, targets, pieces and boosters.
             - Uses the permanent Wam Bam Android signing key for update compatibility.
           files: |
             WamBam_Alpha_8.1.1_Background_Hotfix.apk
