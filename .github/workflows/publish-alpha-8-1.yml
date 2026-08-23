@@ -1,0 +1,157 @@
+name: Publish Wam Bam Alpha 8.1
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-alpha-8-1.yml"
+      - "release-tools/alpha-8.1/**"
+      - "release-tools/alpha-8.0/code2.patch"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android build tools and apktool
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "build-tools;35.0.0"
+          curl -L --fail --retry 3 -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v2.11.1/apktool_2.11.1.jar
+
+      - name: Build Alpha 8.1 with sharp background on Levels 1 to 5
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf work
+          java -jar apktool.jar d -f downloads/alpha-7.9.0/WamBam_Alpha_7.9.0_Events_And_Navigation.apk -o work
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          yml = Path('work/apktool.yml')
+          s = yml.read_text()
+          s, n1 = re.subn(r'(?m)^(\s*versionCode:\s*)\S+\s*$', r'\g<1>80100', s, count=1)
+          s, n2 = re.subn(r'(?m)^(\s*versionName:\s*).+\s*$', r'\g<1>8.1.0', s, count=1)
+          if n1 != 1 or n2 != 1:
+              raise SystemExit('Could not update Android version fields to 8.1.0')
+          yml.write_text(s)
+
+          data = Path('work/assets/www/data.js')
+          ds = data.read_text()
+          if '"version":"7.9.0"' not in ds:
+              raise SystemExit('7.9.0 project version marker not found')
+          data.write_text(ds.replace('"version":"7.9.0"','"version":"8.1.0"',1))
+          PY
+
+          patch work/assets/www/code2.js < release-tools/alpha-8.0/code2.patch
+          cp release-tools/alpha-8.1/game_background_81.webp work/assets/www/game_background_81.webp
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('work/assets/www/code2.js')
+          s = p.read_text()
+          old_names = [
+              'game_background_new.jpg',
+              'level_1_background.png',
+              'level_2_background.png',
+              'level_3_background.png',
+              'level_4_background.png',
+              'level_5_background.png',
+          ]
+          for old in old_names:
+              s = s.replace(old, 'game_background_81.webp')
+
+          if s.count('background: "game_background_81.webp"') < 5:
+              raise SystemExit('All five level backgrounds were not replaced')
+          p.write_text(s)
+          PY
+
+          node --check work/assets/www/code2.js
+          grep -q 'const ROWS = 11' work/assets/www/code2.js
+          grep -q 'const COLS = 8' work/assets/www/code2.js
+          test "$(grep -o 'background: \"game_background_81.webp\"' work/assets/www/code2.js | wc -l)" -ge 5
+          grep -q 'versionCode: 80100' work/apktool.yml
+          grep -q 'versionName: 8.1.0' work/apktool.yml
+          test -s work/assets/www/game_background_81.webp
+
+          java -jar apktool.jar b work -o WamBam_Alpha_8.1.0_Sharp_Background-unsigned.apk
+
+      - name: Sign with permanent Wam Bam key and verify update identity
+        shell: bash
+        env:
+          WB_KEYSTORE_B64: ${{ secrets.WB_KEYSTORE_B64 }}
+          WB_KEYSTORE_PASSWORD: ${{ secrets.WB_KEYSTORE_PASSWORD }}
+          WB_KEY_ALIAS: ${{ secrets.WB_KEY_ALIAS }}
+          WB_KEY_PASSWORD: ${{ secrets.WB_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for v in WB_KEYSTORE_B64 WB_KEYSTORE_PASSWORD WB_KEY_ALIAS WB_KEY_PASSWORD; do
+            if [ -z "${!v:-}" ]; then
+              echo "ERROR: required signing secret $v is missing"
+              exit 1
+            fi
+          done
+
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          echo "$WB_KEYSTORE_B64" | base64 -d > wam-bam-release.keystore
+
+          EXPECTED="D0:4C:06:9C:47:D1:64:2C:83:24:3D:E6:81:E6:2B:FD:1A:5C:99:68:16:AB:0C:7B:15:DE:A8:2A:91:33:8A:D1"
+          ACTUAL="$(keytool -list -v -keystore wam-bam-release.keystore -storepass "$WB_KEYSTORE_PASSWORD" -alias "$WB_KEY_ALIAS" | sed -n 's/.*SHA256: //p' | head -1)"
+          echo "Keystore SHA256: $ACTUAL"
+          test "$ACTUAL" = "$EXPECTED"
+
+          "$BT/zipalign" -f 4 WamBam_Alpha_8.1.0_Sharp_Background-unsigned.apk WamBam_Alpha_8.1.0_Sharp_Background-aligned.apk
+          "$BT/apksigner" sign --ks wam-bam-release.keystore --ks-pass "pass:$WB_KEYSTORE_PASSWORD" --ks-key-alias "$WB_KEY_ALIAS" --key-pass "pass:$WB_KEY_PASSWORD" --out WamBam_Alpha_8.1.0_Sharp_Background.apk WamBam_Alpha_8.1.0_Sharp_Background-aligned.apk
+          "$BT/apksigner" verify --verbose --print-certs WamBam_Alpha_8.1.0_Sharp_Background.apk | tee verify.txt
+          grep -qi 'd04c069c47d1642c83243de681e62bfd1a5c996816ab0c7b15dea82a91338ad1' verify.txt
+
+          "$BT/aapt" dump badging WamBam_Alpha_8.1.0_Sharp_Background.apk | tee badging.txt
+          grep -q "package: name='com.macca.wambamthankumam' versionCode='80100' versionName='8.1.0'" badging.txt
+
+          sha256sum WamBam_Alpha_8.1.0_Sharp_Background.apk > WamBam_Alpha_8.1.0_SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WamBam-Alpha-8.1.0-APK
+          path: |
+            WamBam_Alpha_8.1.0_Sharp_Background.apk
+            WamBam_Alpha_8.1.0_SHA256SUMS.txt
+            badging.txt
+            verify.txt
+
+      - name: Publish verified Alpha 8.1 release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v8.1.0
+          name: Wam Bam Alpha 8.1.0
+          prerelease: true
+          body: |
+            Alpha 8.1.0
+
+            - Replaces the gameplay background on Levels 1 to 5 with the new sharp 4K artwork.
+            - Keeps the 8 x 11 match grid and Alpha 8 gameplay layout.
+            - Keeps pieces rendered separately over the grid.
+            - Uses the permanent Wam Bam Android signing key for update compatibility.
+          files: |
+            WamBam_Alpha_8.1.0_Sharp_Background.apk
+            WamBam_Alpha_8.1.0_SHA256SUMS.txt
