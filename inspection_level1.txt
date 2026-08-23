@@ -961,6 +961,7 @@ assets/www/code3.js
 org/apache/cordova/allowlist/index.html
 
 == SIGNING / KEY FILES ==
+./inspection_extract/signing-files.txt
 
 == BUILD / PACKAGE FILES ==
 inject-alpha-7.3.0.mjs
