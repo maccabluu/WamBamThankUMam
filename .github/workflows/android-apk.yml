@@ -1,81 +1,97 @@
-name: Build Android APK
+name: Inspect Real Wam Bam APK
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - main
+      - level1-apk-8-0
     paths-ignore:
-      - "README.md"
-      - "source_parts/**"
-      - "android_source_parts/**"
+      - "inspection_level1.txt"
   pull_request:
     branches:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  build:
+  inspect:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: level1-apk-8-0
 
-      - name: Inspect current GDevelop APK source
+      - name: Inspect real GDevelop source and APK
+        shell: bash
         run: |
-          rm -rf /tmp/wambam
-          mkdir -p /tmp/wambam
+          set -e
+          rm -rf /tmp/wambam /tmp/wambam_apk
+          mkdir -p /tmp/wambam /tmp/wambam_apk
           unzip -q downloads/alpha-7.9.0/WamBam_GDevelop_Alpha_7.9.0_Events_And_Navigation_Source.zip -d /tmp/wambam
+          unzip -q downloads/alpha-7.9.0/WamBam_Alpha_7.9.0_Events_And_Navigation.apk -d /tmp/wambam_apk
           ROOT="/tmp/wambam/WamBam_GDevelop_Alpha_7.9.0"
           PROJECT="$ROOT/Wam Bam Thank u Mam.json"
-          echo "== PROJECT SIZE =="
-          wc -c "$PROJECT"
-          echo "== TOP LEVEL KEYS =="
-          jq -r 'keys[]' "$PROJECT"
-          echo "== LAYOUTS =="
-          jq -r '.layouts[]?.name' "$PROJECT"
-          echo "== OBJECTS PER LAYOUT =="
-          jq -r '.layouts[]? | "LAYOUT: \(.name)\n" + ((.objects // []) | map(.name) | join("\n")) + "\n---"' "$PROJECT"
-          echo "== RELEVANT RESOURCES =="
-          jq -r '.resources.resources[]? | select(((.name // "") + " " + (.file // "")) | test("game|level|background|tile|coin|heart|target|move|grid|board"; "i")) | [.name,.file] | @tsv' "$PROJECT"
-          echo "== PROJECT TEXT MATCHES =="
-          grep -oEi '.{0,100}(level ?1|grid|board|tile|coin|heart|moves|target).{0,180}' "$PROJECT" | head -n 300 || true
-          echo "== GAME OVERLAY MATCHES =="
-          grep -nEi 'level ?1|grid|board|tile|coin|heart|moves|target|cols|rows' "$ROOT/game-overlay.inline.js" | head -n 350 || true
-          echo "== 7.9 INJECTOR =="
-          sed -n '1,320p' "$ROOT/inject-alpha-7.9.0.mjs"
+          REPORT="inspection_level1.txt"
+          : > "$REPORT"
 
-      - name: Check Level 1 JavaScript
-        run: node --check app/src/main/assets/game11.js
+          {
+            echo "== SOURCE ROOT FILES =="
+            find "$ROOT" -maxdepth 2 -type f | sed "s#$ROOT/##" | sort | head -n 250
+            echo
 
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
+            echo "== PROJECT LAYOUTS =="
+            jq -r '.layouts[]?.name' "$PROJECT"
+            echo
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+            echo "== LAYOUT OBJECT NAMES =="
+            jq -r '.layouts[]? | "LAYOUT: \(.name)" , ((.objects // [])[]?.name), "---"' "$PROJECT" | head -n 500
+            echo
 
-      - name: Install Android SDK 35
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+            echo "== RELEVANT RESOURCES =="
+            jq -r '.resources.resources[]? | select(((.name // "") + " " + (.file // "")) | test("game|level|background|tile|coin|heart|target|move|grid|board|lip|heel|disco|swap"; "i")) | [.name,.file] | @tsv' "$PROJECT" | head -n 250
+            echo
 
-      - name: Set up Gradle 8.9
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.9"
+            echo "== GAME OVERLAY RELEVANT LINES =="
+            grep -nEi 'level ?1|grid|board|tile|coin|heart|moves|target|cols|rows|lip|heel|disco|swap|background' "$ROOT/game-overlay.inline.js" | head -n 300 || true
+            echo
 
-      - name: Build debug APK
-        run: gradle :app:assembleDebug --stacktrace
+            echo "== GAME OVERLAY START =="
+            sed -n '1,260p' "$ROOT/game-overlay.inline.js"
+            echo
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: WamBamThankUMam-Android-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 30
+            echo "== INJECTOR =="
+            sed -n '1,360p' "$ROOT/inject-alpha-7.9.0.mjs"
+            echo
+
+            echo "== APK WEB FILES =="
+            find /tmp/wambam_apk -type f | sed 's#/tmp/wambam_apk/##' | grep -Ei 'assets|www|html|js|css|game|background|level' | head -n 300 || true
+            echo
+
+            echo "== APK RELEVANT TEXT FILES =="
+            grep -RIl -E 'Wam Bam|game-overlay|Level 1|Level1|grid|board|coin|heart|target|moves' /tmp/wambam_apk 2>/dev/null | sed 's#/tmp/wambam_apk/##' | head -n 200 || true
+            echo
+
+            echo "== SIGNING / KEY FILES =="
+            find . "$ROOT" -type f \( -iname '*.jks' -o -iname '*.keystore' -o -iname '*.p12' -o -iname '*.pem' -o -iname '*sign*' -o -iname '*key*' \) | head -n 100 || true
+            echo
+
+            echo "== BUILD / PACKAGE FILES =="
+            find "$ROOT" -maxdepth 3 -type f \( -name 'package.json' -o -name '*.gradle' -o -name 'gradlew' -o -name 'capacitor.config.*' -o -name 'config.xml' -o -name '*.mjs' \) | sed "s#$ROOT/##" | sort | head -n 200
+          } >> "$REPORT"
+
+      - name: Commit inspection report
+        shell: bash
+        run: |
+          git config user.name "BluStudio Build Bot"
+          git config user.email "bigmacblu@gmail.com"
+          git add inspection_level1.txt
+          if git diff --cached --quiet; then
+            echo "No report changes"
+          else
+            git commit -m "Inspect real GDevelop APK Level 1"
+            git push origin HEAD:level1-apk-8-0
+          fi
