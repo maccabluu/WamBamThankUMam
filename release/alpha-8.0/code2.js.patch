@@ -1,0 +1,273 @@
+--- a/code2.js
++++ b/code2.js
+@@ -27,29 +27,32 @@
+     },
+     2: {
+       moves: 16,
+-      background: "level_2_background.png",
++      background: "game_background_new.jpg",
+       targets: {cherries:34, diamond:21, star:23}
+     },
+     3: {
+       moves: 18,
+-      background: "level_3_background.png",
++      background: "game_background_new.jpg",
+       targets: {heart:28, bam:22, disco:6}
+     },
+     4: {
+       moves: 20,
+-      background: "level_4_background.png",
++      background: "game_background_new.jpg",
+       targets: {cherries:32, diamond:24, star:26}
+     },
+     5: {
+       moves: 24,
+-      background: "level_5_background.png",
++      background: "game_background_new.jpg",
+       targets: {handbag:8, heart:24, diamond:22}
+     }
+   };
+ 
++  const ROWS = 11;
++  const COLS = 8;
++
+   const LEVEL_5_HANDBAGS = [
+-    [0,2],[0,5],[2,0],[2,7],
+-    [4,2],[4,5],[6,0],[6,7]
++    [1,1],[1,6],[3,3],[3,4],
++    [6,1],[6,6],[9,2],[9,5]
+   ];
+ 
+   const levelConfig = level => LEVEL_CONFIGS[level] || LEVEL_CONFIGS[1];
+@@ -249,39 +252,39 @@
+       style.id = "wambam-alpha25-style";
+       style.textContent = `
+         @keyframes wamDrop {
+-          0% { transform: translateY(-28%) scale(.78); opacity: .25; }
+-          100% { transform: translateY(0) scale(.78); opacity: 1; }
++          0% { transform: translateY(-28%) scale(.88); opacity: .25; }
++          100% { transform: translateY(0) scale(.88); opacity: 1; }
+         }
+         @keyframes wamPop {
+-          0% { transform: scale(.78); opacity: 1; }
++          0% { transform: scale(.88); opacity: 1; }
+           65% { transform: scale(1.08); opacity: 1; }
+           100% { transform: scale(.08); opacity: 0; }
+         }
+         @keyframes wamDropSmooth {
+-          0% { transform: translateY(-70%) scale(.78); opacity: .08; }
+-          72% { transform: translateY(4%) scale(.78); opacity: 1; }
+-          100% { transform: translateY(0) scale(.78); opacity: 1; }
++          0% { transform: translateY(-70%) scale(.88); opacity: .08; }
++          72% { transform: translateY(4%) scale(.88); opacity: 1; }
++          100% { transform: translateY(0) scale(.88); opacity: 1; }
+         }
+         @keyframes wamSwapForward {
+           0% { transform:translate(0,0) scale(1); }
+           100% { transform:translate(var(--swap-x),var(--swap-y)) scale(1); }
+         }
+         @keyframes wamDropExact {
+-          0% { transform:translateY(var(--wam-fall)) scale(.78); opacity:.25; }
+-          80% { transform:translateY(4%) scale(.78); opacity:1; }
+-          100% { transform:translateY(0) scale(.78); opacity:1; }
++          0% { transform:translateY(var(--wam-fall)) scale(.88); opacity:.25; }
++          80% { transform:translateY(4%) scale(.88); opacity:1; }
++          100% { transform:translateY(0) scale(.88); opacity:1; }
+         }
+         @keyframes wamMatchPulse {
+-          0% { transform: scale(.78); filter: brightness(1); }
++          0% { transform: scale(.88); filter: brightness(1); }
+           40% { transform: scale(.92); filter: brightness(1.35); }
+           70% { transform: scale(.72); filter: brightness(1.1); }
+           100% { transform: scale(.02); opacity: 0; }
+         }
+         @keyframes wamDiscoConvert {
+-          0% { transform: scale(.78) rotate(0); filter: brightness(1); }
++          0% { transform: scale(.88) rotate(0); filter: brightness(1); }
+           35% { transform: scale(1.02) rotate(-8deg); filter: brightness(1.75) drop-shadow(0 0 10px #fff); }
+           70% { transform: scale(.9) rotate(7deg); filter: brightness(1.35) drop-shadow(0 0 14px #25e4ff); }
+-          100% { transform: scale(.78) rotate(0); filter: brightness(1); }
++          100% { transform: scale(.88) rotate(0); filter: brightness(1); }
+         }
+@@ -330,13 +333,13 @@
+ 
+     st.movesEl = label(5.1,5.2,14.5,5.9);
+     st.movesEl.style.fontSize = "clamp(23px,3.8vw,40px)";
+-    st.coinsEl = label(76.8,2.65,14.4,3.05);
+-    st.coinsEl.style.fontSize = "clamp(13px,2.05vw,22px)";
+-    st.livesEl = label(87.3,9.05,8.0,3.7);
+-    st.livesEl.style.fontSize = "clamp(17px,2.55vw,27px)";
+-    st.livesEl.style.lineHeight = "1";
+-
+-    const targetRows = [25.1,29.0,32.9];
++    // Alpha 8.0 artwork no longer has Coins or Hearts/Lives tabs.
++    // Keep the values in save data, but do not render counters over the new art.
++    st.coinsEl = document.createElement("span");
++    st.livesEl = document.createElement("span");
++
++    // Targets now sit inside the dedicated top-right TARGET panel.
++    const targetRows = [8.1,12.0,15.9];
+     st.targetEls = {};
+@@ -346,10 +349,10 @@
+         Object.assign(icon.style, {
+           position: "absolute",
+-          left: "5.8%",
++          left: "78.2%",
+           top: `${targetRows[index] - .8}%`,
+-          width: "7%",
+-          height: "3.6%",
++          width: "7.2%",
++          height: "3.1%",
+@@ -359,7 +362,7 @@
+         root.appendChild(icon);
+       }
+-      st.targetEls[key] = label(13.0,targetRows[index] - .25,7.2,2.5,"#171717");
++      st.targetEls[key] = label(86.0,targetRows[index] - .18,9.2,2.5,"#171717");
+@@ -367,13 +370,7 @@
+-    const boardLayout = st.level === 1
+-      ? {left:14.1, top:38.0, width:74.0, height:45.7}
+-      : st.level === 4
+-        ? {left:14.0, top:38.4, width:74.8, height:47.5}
+-        : st.level === 5
+-          ? {left:14.1, top:38.7, width:74.7, height:47.0}
+-        : {left:14.2, top:38.6, width:75.2, height:46.8};
++    const boardLayout = {left:12.9, top:20.5, width:76.5, height:63.6};
+@@ -382,8 +379,8 @@
+-    board.style.gridTemplateColumns = "repeat(8,1fr)";
+-    board.style.gridTemplateRows = "repeat(8,1fr)";
++    board.style.gridTemplateColumns = `repeat(${COLS},1fr)`;
++    board.style.gridTemplateRows = `repeat(${ROWS},1fr)`;
+@@ -556,8 +553,8 @@
+-      const first = buttons[a.r * 8 + a.c];
+-      const second = buttons[b.r * 8 + b.c];
++      const first = buttons[a.r * COLS + a.c];
++      const second = buttons[b.r * COLS + b.c];
+@@ -584,7 +581,7 @@
+-        const el = buttons[p.r * 8 + p.c];
++        const el = buttons[p.r * COLS + p.c];
+@@ -1116,7 +1113,7 @@
+-          if (r >= 0 && r < 8 && c >= 0 && c < 8 && hasHandbag(r,c)) {
++          if (r >= 0 && r < ROWS && c >= 0 && c < COLS && hasHandbag(r,c)) {
+@@ -1141,19 +1138,19 @@
+-      for (let r = 0; r < 8; r++) {
+-        for (let c = 0; c < 8; c++) {
+-          if (c < 7 && swapCreatesMatch(r,c,r,c+1)) return true;
+-          if (r < 7 && swapCreatesMatch(r,c,r+1,c)) return true;
++      for (let r = 0; r < ROWS; r++) {
++        for (let c = 0; c < COLS; c++) {
++          if (c < COLS - 1 && swapCreatesMatch(r,c,r,c+1)) return true;
++          if (r < ROWS - 1 && swapCreatesMatch(r,c,r+1,c)) return true;
+@@ -1152,9 +1149,9 @@
+-      st.board = Array.from({length:8}, () => Array(8).fill(0));
+-      for (let r=0;r<8;r++) {
+-        for (let c=0;c<8;c++) {
++      st.board = Array.from({length:ROWS}, () => Array(COLS).fill(0));
++      for (let r=0;r<ROWS;r++) {
++        for (let c=0;c<COLS;c++) {
+@@ -1191,8 +1188,8 @@
+-      for (let r=0; r<7; r++) {
+-        for (let c=0; c<7; c++) {
++      for (let r=0; r<ROWS-1; r++) {
++        for (let c=0; c<COLS-1; c++) {
+@@ -1216,13 +1213,13 @@
+-      for (let r = 0; r < 8; r++) {
++      for (let r = 0; r < ROWS; r++) {
+         let c = 0;
+-        while (c < 8) {
++        while (c < COLS) {
+@@
+-          while (end < 8 && matchValue(r,end) === value) end++;
++          while (end < COLS && matchValue(r,end) === value) end++;
+@@ -1235,13 +1232,13 @@
+-      for (let c = 0; c < 8; c++) {
++      for (let c = 0; c < COLS; c++) {
+         let r = 0;
+-        while (r < 8) {
++        while (r < ROWS) {
+@@
+-          while (end < 8 && matchValue(end,c) === value) end++;
++          while (end < ROWS && matchValue(end,c) === value) end++;
+@@ -1264,12 +1261,12 @@
+-      for (let r = 0; r < 8; r++) {
++      for (let r = 0; r < ROWS; r++) {
+         let c = 0;
+-        while (c < 8) {
++        while (c < COLS) {
+@@
+-          while (end < 8 && matchValue(r,end) === value) end++;
++          while (end < COLS && matchValue(r,end) === value) end++;
+@@ -1278,12 +1275,12 @@
+-      for (let c = 0; c < 8; c++) {
++      for (let c = 0; c < COLS; c++) {
+         let r = 0;
+-        while (r < 8) {
++        while (r < ROWS) {
+@@
+-          while (end < 8 && matchValue(end,c) === value) end++;
++          while (end < ROWS && matchValue(end,c) === value) end++;
+@@ -1307,18 +1304,18 @@
+-        : [0,1,2,3,4,5,6,7];
++        : Array.from({length:COLS}, (_,i) => i);
+@@
+-      while (safety++ < 30) {
++      while (safety++ < 48) {
+@@
+-          for (let r = 7; r >= 1; r--) {
++          for (let r = ROWS - 1; r >= 1; r--) {
+@@ -1371,11 +1368,11 @@
+-      const cols=columns&&columns.length?[...new Set(columns)]:[0,1,2,3,4,5,6,7];
++      const cols=columns&&columns.length?[...new Set(columns)]:Array.from({length:COLS},(_,i)=>i);
+       const moves=[];
+       for(const col of cols){
+-        let write=7;
+-        for(let r=7;r>=0;r--){
++        let write=ROWS-1;
++        for(let r=ROWS-1;r>=0;r--){
+@@ -1469,8 +1466,8 @@
+-        for (let r=0;r<8;r++) {
+-          for (let c=0;c<8;c++) st.board[r][c] = vals[r*8+c];
++        for (let r=0;r<ROWS;r++) {
++          for (let c=0;c<COLS;c++) st.board[r][c] = vals[r*8+c];
+@@ -1527,8 +1524,8 @@
+-            for (let rr=0; rr<8; rr++) {
+-              for (let cc=0; cc<8; cc++) {
++            for (let rr=0; rr<ROWS; rr++) {
++              for (let cc=0; cc<COLS; cc++) {
+@@ -1591,12 +1588,12 @@
+-          ...Array.from({length:8},(_,i)=>handbagKey(r,i)),
+-          ...Array.from({length:8},(_,i)=>handbagKey(i,c))
++          ...Array.from({length:COLS},(_,i)=>handbagKey(r,i)),
++          ...Array.from({length:ROWS},(_,i)=>handbagKey(i,c))
+         ]);
+-        for (let i=0;i<8;i++) {
+-          st.board[r][i] = null;
+-          st.board[i][c] = null;
++        for (let i=0;i<Math.max(ROWS,COLS);i++) {
++          if (i < COLS) st.board[r][i] = null;
++          if (i < ROWS) st.board[i][c] = null;
+@@ -1609,8 +1606,8 @@
+-        for (let rr=0;rr<8;rr++) {
+-          for (let cc=0;cc<8;cc++) {
++        for (let rr=0;rr<ROWS;rr++) {
++          for (let cc=0;cc<COLS;cc++) {
+@@ -1719,8 +1716,8 @@
+-      for(let r=0;r<8;r++) {
+-        for(let c=0;c<8;c++) {
++      for(let r=0;r<ROWS;r++) {
++        for(let c=0;c<COLS;c++) {
+@@ -1736,12 +1733,12 @@
+-            heart: "108% 108%",
+-            star: "108% 108%",
+-            diamond: "96% 96%",
+-            cherries: "100% 100%",
+-            bam: "100% 100%",
+-            disco: "205% 116%"
++            heart: "90% 90%",
++            star: "90% 90%",
++            diamond: "84% 84%",
++            cherries: "88% 88%",
++            bam: "88% 88%",
++            disco: "168% 92%"
+@@ -1761,7 +1758,7 @@
+-          b.style.transform=bagState ? "scale(.9)" : "scale(.78)";
++          b.style.transform=bagState ? "scale(.9)" : "scale(.88)";
