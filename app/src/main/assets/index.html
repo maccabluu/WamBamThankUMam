@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
   <meta name="theme-color" content="#080813">
   <title>Wam Bam Thank U Mam</title>
+  <link rel="preload" as="image" href="level1_bg.webp">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="level1.css">
 </head>
 <body>
 <div id="app">
@@ -56,48 +58,30 @@
     <button class="reward-banner" data-action="events"><strong>BOOM!</strong><span>PLAY EVENTS<br><b>WIN BIG REWARDS!</b></span><i>🪙 🎁 💣</i></button>
   </section>
 
-  <section id="gameScreen" class="screen">
-    <div class="game-city"></div>
-    <div class="halftone game-dots"></div>
+  <section id="gameScreen" class="screen level-one-screen">
+    <img class="level-one-bg" src="level1_bg.webp" alt="" draggable="false" aria-hidden="true">
 
-    <div class="game-hud">
-      <div class="moves-card"><small>MOVES</small><b id="movesValue">16</b><i>★</i></div>
-      <button class="game-coins" data-action="coins"><span class="coin">$</span><b id="gameCoins">12,450</b><i>+</i></button>
-      <button class="game-lives" data-action="lives"><span>♥</span><b id="gameLives">5</b><small>FULL</small></button>
+    <div class="level-one-hud" aria-live="polite">
+      <div class="moves-live"><b id="movesValue">16</b></div>
+      <aside class="target-live" aria-label="Level targets">
+        <div><span class="target-icon cherry-mini">●●</span><b id="targetCherries">30</b></div>
+        <div><span class="target-icon diamond-mini">◆</span><b id="targetDiamond">18</b></div>
+        <div><span class="target-icon star-mini">★</span><b id="targetStar">20</b></div>
+      </aside>
     </div>
 
-    <div class="game-logo burst-logo">
-      <span class="game-wam">WAM</span>
-      <span class="game-bam">BAM</span>
-      <span class="game-thank">THANK U</span>
-      <span class="game-mam">MAM</span>
+    <div id="boardFrame" class="board-frame level-one-board-frame">
+      <div id="board" class="board level-one-board" aria-label="11 by 11 match three board"></div>
     </div>
 
-    <aside class="target-card">
-      <h3>TARGET</h3>
-      <div><span class="target-icon cherry-mini">●●</span><b id="targetCherries">30</b></div>
-      <div><span class="target-icon diamond-mini">◆</span><b id="targetDiamond">18</b></div>
-      <div><span class="target-icon star-mini">★</span><b id="targetStar">20</b></div>
-    </aside>
-
-    <div class="pinup game-pinup" aria-hidden="true">
-      <div class="bow"><i></i><i></i></div><div class="hair back"></div>
-      <div class="head"><span class="eye left"></span><span class="eye right wink"></span><span class="mouth"></span></div>
-      <div class="hair front"></div><div class="earring left"></div><div class="earring right"></div><div class="hand-kiss">♡♡</div>
-    </div>
-
-    <div class="lounge-label">LIPSTICK<br><b>Lounge</b></div>
-    <div class="bam-neon">BAM!</div>
-
-    <div id="boardFrame" class="board-frame"><div id="board" class="board" aria-label="Match three board"></div></div>
     <div id="bamFlash" class="bam-flash">WAM!</div>
 
-    <div class="boosters">
-      <button class="booster" data-booster="rocket"><span class="booster-art">🚀</span><b>ROCKET</b><i id="rocketCount">3</i></button>
-      <button class="booster" data-booster="hammer"><span class="booster-art">🔨</span><b>HAMMER</b><i id="hammerCount">3</i></button>
-      <button class="booster" data-booster="disco"><span class="booster-art disco">◉</span><b>DISCO BALL</b><i id="discoCount">3</i></button>
-      <button class="booster" data-booster="swap"><span class="booster-art">↔</span><b>SWAP</b><i id="swapCount">3</i></button>
-      <button id="pauseButton" class="pause-button">Ⅱ</button>
+    <div class="boosters level-one-boosters" aria-label="Power ups">
+      <button class="booster" data-booster="rocket" aria-label="Lip Laser"><i id="rocketCount">3</i></button>
+      <button class="booster" data-booster="hammer" aria-label="Heel Smash"><i id="hammerCount">3</i></button>
+      <button class="booster" data-booster="disco" aria-label="Disco Ball"><i id="discoCount">3</i></button>
+      <button class="booster" data-booster="swap" aria-label="Swap"><i id="swapCount">3</i></button>
+      <button id="pauseButton" class="pause-button" aria-label="Pause">PAUSE</button>
     </div>
   </section>
 
@@ -111,6 +95,6 @@
     </div>
   </div>
 </div>
-<script src="game.js"></script>
+<script src="game11.js"></script>
 </body>
 </html>
