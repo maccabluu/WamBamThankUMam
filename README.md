@@ -2,18 +2,23 @@
 
 Native Android match-3 game in Alpha.
 
-## Latest gameplay update — Alpha 9.0.0
+## Latest gameplay update — Alpha 9.3.0
 
-- [Download Wam Bam Alpha 9.0.0 for Android](https://github.com/maccabluu/WamBamThankUMam/releases/download/v9.0.0/WamBam_Alpha_9.0.0_4x6_Large_Icons.apk)
-- [Read the Alpha 9.0.0 release notes](downloads/alpha-9.0.0/RELEASE_NOTES.md)
+- [Download Wam Bam Alpha 9.3.0 for Android](https://github.com/maccabluu/WamBamThankUMam/releases/download/v9.3.0/WamBam_Alpha_9.3.0_Lenovo_Tab_P12_Pro_6x10.apk)
+- [Read the Alpha 9.3.0 release notes](https://github.com/maccabluu/WamBamThankUMam/releases/tag/v9.3.0)
 
-Alpha 9.0.0 changes Levels 1–5 to a clear 4-across by 6-down board. The pieces are much larger, the cells stay square, and the complete board is centred inside the parchment frame on every level.
+Alpha 9.3.0 expands Levels 1–5 to a full-height board with 6 icons across and 10 icons down. The board now fills the parchment gameplay box while retaining drag/swipe controls, booster taps, match checking, swaps, cascades, drops and reshuffles.
 
-Match checking, swaps, cascades, drops, reshuffles, all four boosters and Level 5 handbag blockers now use the new board dimensions. Reducing the live board from 64 pieces to 24 also lowers rendering work for smoother gameplay.
+Tablet-safe aspect scaling keeps the artwork and touch targets aligned on wider Android displays, including the Lenovo Tab P12 Pro. Large and xlarge Android screens are supported, and all five levels retain the unified lounge background with the Coins and Hearts tabs removed.
 
-The updated lounge background remains on every level, with the old Coins and Hearts gameplay tabs removed and the live Moves and Target information aligned to the new upper panels.
+Alpha 9.3.0 uses Android versionCode `93000`, versionName `9.3.0`, package `com.macca.wambamthankumam`, and the existing Wam Bam signing identity so it installs as an update to previous builds.
 
-Alpha 9.0.0 uses Android versionCode `90000`, versionName `9.0.0`, package `com.macca.wambamthankumam`, and the permanent Wam Bam signing key so it installs as an update to the existing app.
+## Previous update — Alpha 9.2.0
+
+- [Download Wam Bam Alpha 9.2.0 for Android](https://github.com/maccabluu/WamBamThankUMam/releases/download/v9.2.0/WamBam_Alpha_9.2.0_6x8_Full_Box_Drag.apk)
+- [Read the Alpha 9.2.0 release notes](https://github.com/maccabluu/WamBamThankUMam/releases/tag/v9.2.0)
+
+Alpha 9.2.0 introduced the full-height 6 × 8 gameplay board and natural drag/swipe controls across Levels 1–5.
 
 ## Previous update — Alpha 8.1.1
 
