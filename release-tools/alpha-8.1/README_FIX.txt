@@ -1,0 +1,1 @@
+Alpha 8.1 hotfix: use JPEG gameplay background for Android WebView compatibility and verify the image exists inside the rebuilt APK before release.
