@@ -1,0 +1,9 @@
+WAM BAM ALPHA 7.9.0 — EVENTS & NAVIGATION FIX
+
+- Road Map level balls resized and centred on the gold bases.
+- Gameplay and Road Map HOME buttons restore the complete Home screen.
+- Home character movement is fitted to the artwork and the wink now covers the eye.
+- Level 5 locked and open handbags are contained inside their board tiles.
+- Music and sound effects pause when the app is backgrounded or closed.
+- New Daily Spotlight, Match Mania, and Couture Rescue events award coins.
+- Optional local event reminders are available from the Events screen.

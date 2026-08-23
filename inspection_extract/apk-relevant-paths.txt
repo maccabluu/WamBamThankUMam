@@ -1,0 +1,14 @@
+assets/www/Extensions/3D/DirectionalLight.js
+assets/www/code0.js
+assets/www/code2.js
+assets/www/code3.js
+assets/www/cordova.js
+assets/www/data.js
+assets/www/events-tools/objecttools.js
+assets/www/index.html
+assets/www/libs/rbush.js
+assets/www/pixi-renderers/pixi.js
+assets/www/pixi-renderers/runtimegame-pixi-renderer.js
+assets/www/plugins/cordova-plugin-local-notification/www/local-notification.js
+assets/www/runtimewatermark.js
+org/apache/cordova/allowlist/index.html
