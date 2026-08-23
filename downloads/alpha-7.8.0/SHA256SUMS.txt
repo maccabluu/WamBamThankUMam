@@ -1,0 +1,2 @@
+2a3d45eaa7d8412e1341378d7f44c632f01b9840e0c72595108cdd77e00ab068  WamBam_Alpha_7.8.0_Level5_Couture_Vault.apk
+428c993975f9272e8849417fb22d40f4a6461cd1b55ed9ac5713121874dd4a5d  WamBam_GDevelop_Alpha_7.8.0_Level5_Couture_Vault_Source.zip

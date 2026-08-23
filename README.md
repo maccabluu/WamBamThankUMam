@@ -2,12 +2,15 @@
 
 Native Android match-3 game in Alpha.
 
-## Latest GDevelop build — Alpha 7.4.0
+## Latest GDevelop build — Alpha 7.8.0
 
-- [Download the Android APK](downloads/alpha-7.4.0/WamBam_Thank_U_Mam_Alpha_7.4.0_Level3_Disco.apk)
-- [Download the editable GDevelop source](downloads/alpha-7.4.0/WamBam_GDevelop_Alpha_7.4.0_Level3_Disco_Source.zip)
+- [Download the Android APK](downloads/alpha-7.8.0/WamBam_Alpha_7.8.0_Level5_Couture_Vault.apk)
+- [Download the editable GDevelop source](downloads/alpha-7.8.0/WamBam_GDevelop_Alpha_7.8.0_Level5_Couture_Vault_Source.zip)
+- [Read the Alpha 7.8.0 release notes](downloads/alpha-7.8.0/RELEASE_NOTES.md)
 
-This build fixes the cropped Level 2/3 bottom controls, realigns the board, adds the new Level 3 Starlight Stage artwork and targets, creates Discos from 2 x 2 squares, and turns a Disco-swapped icon type into exploding Discos that award coins and update targets. It also includes the Wam Bam show-poster completion popup, road-map Level 3 unlock, stage curtains, BluStudio loader, app icon, and saved coins across levels.
+Alpha 7.8.0 adds the new Level 5 Couture Vault with eight two-stage chained handbag blockers. Match beside a handbag once to open it, then match beside it again to clear it, earn coins and update the target. The update also fits the Home coin/life/level numbers, realigns the wink, fits all Settings controls, shrinks the Road Map level balls onto their gold pads, and extends the moving journey and saved progression through Level 5.
+
+Levels 1–5, the frozen Level 4 theme, music and sound effects, Disco conversions, curtain transitions, the BluStudio loader, app icon, updater and saved coins/lives remain included.
 
 Package: `com.macca.wambamthankumam`
 

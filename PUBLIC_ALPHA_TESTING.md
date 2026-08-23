@@ -1,4 +1,4 @@
-# Wam Bam Thank U Mam Public Alpha 0.1
+# Wam Bam Thank U Mam Public Alpha 7.8.0
 
 This build is for public testing.
 
@@ -6,9 +6,13 @@ This build is for public testing.
 
 - Home screen
 - Road Map
-- Level 1
+- Levels 1–5
 - Match-3 gameplay
+- Level 4 Frozen Lounge performance
+- Level 5 chained handbags: locked → open → cleared
+- Disco creation and Disco icon conversion
 - Settings screen
+- Built-in update checker
 - Replay and Home controls on the Out of Moves screen
 
 ## Please report
@@ -28,4 +32,4 @@ This build is for public testing.
 - What you pressed before the problem happened
 - Screenshot or screen recording if possible
 
-Build base: Alpha 6.9
+Build base: Alpha 7.8.0
