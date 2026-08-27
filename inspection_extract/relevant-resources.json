@@ -1,0 +1,155 @@
+[
+  {
+    "alwaysLoaded": false,
+    "file": "out_of_moves.png",
+    "kind": "image",
+    "metadata": "",
+    "name": "out_of_moves.png",
+    "smoothed": true,
+    "userAdded": true
+  },
+  {
+    "alwaysLoaded": false,
+    "file": "tile_heart_new.png",
+    "kind": "image",
+    "metadata": "",
+    "name": "tile_heart_new.png",
+    "smoothed": true,
+    "userAdded": true
+  },
+  {
+    "alwaysLoaded": false,
+    "file": "tile_star_new.png",
+    "kind": "image",
+    "metadata": "",
+    "name": "tile_star_new.png",
+    "smoothed": true,
+    "userAdded": true
+  },
+  {
+    "alwaysLoaded": false,
+    "file": "tile_diamond_new.png",
+    "kind": "image",
+    "metadata": "",
+    "name": "tile_diamond_new.png",
+    "smoothed": true,
+    "userAdded": true
+  },
+  {
+    "alwaysLoaded": false,
+    "file": "tile_cherries_new.png",
+    "kind": "image",
+    "metadata": "",
+    "name": "tile_cherries_new.png",
+    "smoothed": true,
+    "userAdded": true
+  },
+  {
+    "alwaysLoaded": false,
+    "file": "tile_bam_new.png",
+    "kind": "image",
+    "metadata": "",
+    "name": "tile_bam_new.png",
+    "smoothed": true,
+    "userAdded": true
+  },
+  {
+    "alwaysLoaded": false,
+    "file": "tile_disco_new.png",
+    "kind": "image",
+    "metadata": "",
+    "name": "tile_disco_new.png",
+    "smoothed": true,
+    "userAdded": true
+  },
+  {
+    "alwaysLoaded": false,
+    "file": "game_background_new.jpg",
+    "kind": "image",
+    "metadata": "",
+    "name": "game_background_new.jpg",
+    "smoothed": true,
+    "userAdded": true
+  },
+  {
+    "alwaysLoaded": false,
+    "file": "level_2_background.png",
+    "kind": "image",
+    "metadata": "",
+    "name": "level_2_background.png",
+    "smoothed": true,
+    "userAdded": true
+  },
+  {
+    "alwaysLoaded": false,
+    "file": "road_map_background_new.jpg",
+    "kind": "image",
+    "metadata": "",
+    "name": "road_map_background_new.jpg",
+    "smoothed": true,
+    "userAdded": true
+  },
+  {
+    "alwaysLoaded": false,
+    "file": "settings_background.jpg",
+    "kind": "image",
+    "metadata": "",
+    "name": "settings_background.jpg",
+    "smoothed": true,
+    "userAdded": true
+  },
+  {
+    "alwaysLoaded": false,
+    "file": "level_3_background.png",
+    "kind": "image",
+    "metadata": "",
+    "name": "level_3_background.png",
+    "smoothed": true,
+    "userAdded": true
+  },
+  {
+    "alwaysLoaded": false,
+    "file": "level_complete_popup_dynamic.png",
+    "kind": "image",
+    "metadata": "",
+    "name": "level_complete_popup_dynamic.png",
+    "smoothed": true,
+    "userAdded": true
+  },
+  {
+    "alwaysLoaded": false,
+    "file": "wam_coin.mp3",
+    "kind": "audio",
+    "metadata": "",
+    "name": "wam_coin.mp3",
+    "smoothed": false,
+    "userAdded": true
+  },
+  {
+    "alwaysLoaded": false,
+    "file": "wam_disco.mp3",
+    "kind": "audio",
+    "metadata": "",
+    "name": "wam_disco.mp3",
+    "smoothed": false,
+    "userAdded": true
+  },
+  {
+    "alwaysLoaded": false,
+    "file": "level_4_background.png",
+    "kind": "image",
+    "metadata": "",
+    "name": "level_4_background.png",
+    "smoothed": true,
+    "userAdded": true
+  },
+  {
+    "alwaysLoaded": false,
+    "file": "level_5_background.png",
+    "kind": "image",
+    "metadata": "",
+    "name": "level_5_background.png",
+    "smoothed": true,
+    "userAdded": true
+  }
+]
