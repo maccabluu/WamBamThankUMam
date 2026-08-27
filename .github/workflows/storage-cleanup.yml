@@ -1,0 +1,60 @@
+name: Actions storage cleanup
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '31 4 * * *'
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: actions-storage-cleanup
+  cancel-in-progress: true
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove old Actions artifacts and caches
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            const artifacts = await github.paginate(
+              github.rest.actions.listArtifactsForRepo,
+              { owner, repo, per_page: 100 }
+            );
+            artifacts.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+            for (const artifact of artifacts.slice(1)) {
+              await github.rest.actions.deleteArtifact({
+                owner,
+                repo,
+                artifact_id: artifact.id
+              });
+            }
+
+            const caches = await github.paginate(
+              github.rest.actions.getActionsCacheList,
+              { owner, repo, per_page: 100 }
+            );
+            caches.sort((a, b) =>
+              new Date(b.last_accessed_at || b.created_at) -
+              new Date(a.last_accessed_at || a.created_at)
+            );
+
+            for (const cache of caches.slice(2)) {
+              await github.rest.actions.deleteActionsCacheById({
+                owner,
+                repo,
+                cache_id: cache.id
+              });
+            }
+
+            core.info(`Kept newest artifact and newest two caches for ${owner}/${repo}.`);
