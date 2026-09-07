@@ -8,7 +8,7 @@ const http=require('node:http');
 async function main(){
   const www=path.resolve(process.argv[2]);
   const screenshots=path.resolve(process.argv[3]||'screen-checks');await fs.mkdir(screenshots,{recursive:true});
-  const qa=`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><script>window.gdjs={};</script><script src="wam-campaign.js"></script><script src="wam-engine.js"></script><script src="wam-ui.js"></script><script src="wam-map.js"></script><script src="code1.js"></script><script src="code2.js"></script></head><body><canvas style="display:none"></canvas><script>
+  const qa=`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><script>window.gdjs={};</script><script src="wam-campaign.js"></script><script src="wam-engine.js"></script><script src="wam-ui.js"></script><script src="wam-map.js"></script><script src="code1.js"></script><script src="code2.js"></script></head><body><canvas style="display:none"></canvas><script>
   localStorage.setItem('wambam-unlocked-level','9');localStorage.setItem('wambam-selected-level','6');
   window.qa={scene:{},name:'Level Map'};
   window.gdjs.evtTools={runtimeScene:{replaceScene:(scene,name)=>{qa.scene={};qa.name=name;if(name==='Untitled scene'){document.body.dataset.home='true';}}}};
@@ -16,9 +16,9 @@ async function main(){
   </script></body></html>`;
   const server=http.createServer(async(req,res)=>{try{
     const url=new URL(req.url,'http://localhost'),rel=decodeURIComponent(url.pathname).replace(/^\//,'');
-    if(rel==='qa.html'){res.setHeader('Content-Type','text/html');res.end(qa);return;}
+    if(rel==='qa.html'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end(qa);return;}
     const file=path.resolve(www,rel);if(!file.startsWith(www+path.sep)){res.writeHead(403).end();return;}
-    const mime={'.js':'text/javascript','.html':'text/html','.png':'image/png','.jpg':'image/jpeg','.mp3':'audio/mpeg'}[path.extname(file)];
+    const mime={'.js':'text/javascript; charset=utf-8','.html':'text/html; charset=utf-8','.png':'image/png','.jpg':'image/jpeg','.mp3':'audio/mpeg'}[path.extname(file)];
     if(mime)res.setHeader('Content-Type',mime);res.end(await fs.readFile(file));
   }catch{res.writeHead(404).end();}});
   await new Promise(r=>server.listen(0,'127.0.0.1',r));
@@ -29,6 +29,13 @@ async function main(){
     const page=await browser.newPage({viewport:{width:414,height:896},deviceScaleFactor:2,hasTouch:true});
     page.on('pageerror',e=>failures.push(String(e)));
     await page.goto(url);await page.getByRole('button',{name:'LEVEL LIST',exact:true}).waitFor();
+    assert.equal(await page.getByRole('button',{name:'Home',exact:true}).textContent(),'⌂');
+    assert.ok(await page.locator('.wam-node-stars').first().textContent()==='✓ COMPLETE');
+    const overlapping=await page.evaluate(()=>{
+      const stops=[...document.querySelectorAll('.wam-map-stop')].map(e=>e.getBoundingClientRect());
+      return stops.some((a,i)=>stops.slice(i+1).some(b=>a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top));
+    });
+    assert.equal(overlapping,false,'Map level names and stars must not overlap other stops');
     await page.screenshot({path:path.join(screenshots,'map-phone.png')});
     for(const level of [6,7,8,9]){
       await page.getByRole('button',{name:'LEVEL LIST',exact:true}).click();
@@ -75,8 +82,17 @@ async function main(){
     let full=(await fs.readFile(path.join(www,'index.html'),'utf8')).replace("<script src='cordova.js'></script>",'').replace('document.addEventListener("deviceready", onDeviceReady, false);','window.addEventListener("load", onDeviceReady);');
     await fs.writeFile(path.join(www,'integration-check.html'),full);
     await page.goto(url.replace('qa.html','integration-check.html'));await page.locator('#wambam-home-effects').waitFor({timeout:30000});
+    await page.locator('#wambam-blustudio-boot').waitFor({state:'detached',timeout:10000});
     await page.screenshot({path:path.join(screenshots,'original-home.png')});
-    assert.deepEqual(failures,[]);console.log('PASS: all new levels, targets, swipe controls, last-move win, next level, locked previews, tablet layout and original home integration.');
+    const home=await page.locator('#wambam-home-effects').boundingBox();
+    await page.mouse.click(home.x+home.width*.5,home.y+home.height*.735);
+    await page.getByRole('button',{name:'LEVEL LIST',exact:true}).waitFor();
+    await page.getByRole('button',{name:'PLAY LEVEL 2',exact:true}).click();
+    await page.getByRole('dialog').getByRole('button',{name:'PLAY LEVEL 2',exact:true}).click();
+    await page.locator('.wam-grid').waitFor();assert.equal(await page.locator('.wam-cell').count(),60);
+    await page.getByRole('button',{name:'Pause game'}).click();await page.getByRole('button',{name:'HOME',exact:true}).click();
+    await page.locator('#wambam-home-effects').waitFor();assert.equal(await page.locator('canvas').evaluate(e=>getComputedStyle(e).visibility),'visible');
+    assert.deepEqual(failures,[]);console.log('PASS: all new levels, targets, swipe controls, last-move win, next level, locked previews, map spacing, tablet layout and original home-to-map-to-game return flow.');
   }finally{await browser.close();await new Promise(r=>server.close(r));}
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

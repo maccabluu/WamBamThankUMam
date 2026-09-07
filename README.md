@@ -2,7 +2,20 @@
 
 Native Android match-3 game in Alpha.
 
-## Latest gameplay update — Alpha 9.3.0
+## Latest gameplay update: Alpha 9.4.0
+
+- [Download Wam Bam Alpha 9.4.0 for Android](https://github.com/maccabluu/WamBamThankUMam/releases/download/v9.4.0/WamBam_Alpha_9.4.0_Levels_6_to_9.apk)
+- [Read the Alpha 9.4.0 release notes](release-tools/alpha-9.4/RELEASE_NOTES.md)
+
+Levels 6 to 9 use all ten new icons with different palettes and targets: Lipstick & Leopard, Spotlight Disco, Glamour Vault and Bam Grand Finale. The 6 by 10 board adds line blasts, T and L area blasts, Disco combinations, coordinated falling pieces and boosters that count towards targets.
+
+The scrolling map has target previews, a level list, My Level navigation, saved stars, replay and clear level locks. Existing unlocked progress is retained. The original home screen, gameplay background, music settings and daily events remain available.
+
+The build checks gameplay rules, swipes, level progression, map controls and phone/tablet layouts. It verifies the same signing certificate as Alpha 9.3.0, with version code `94000`, version name `9.4.0` and package `com.macca.wambamthankumam`. Device performance and audio still need a physical Android check.
+
+Editable game modules and the reproducible APK update script are in [release-tools/alpha-9.4](release-tools/alpha-9.4). The build starts from the verified 9.3.0 APK and keeps its Cordova Android runtime.
+
+## Previous gameplay update: Alpha 9.3.0
 
 - [Download Wam Bam Alpha 9.3.0 for Android](https://github.com/maccabluu/WamBamThankUMam/releases/download/v9.3.0/WamBam_Alpha_9.3.0_Lenovo_Tab_P12_Pro_6x10.apk)
 - [Read the Alpha 9.3.0 release notes](https://github.com/maccabluu/WamBamThankUMam/releases/tag/v9.3.0)

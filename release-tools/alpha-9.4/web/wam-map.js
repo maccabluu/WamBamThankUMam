@@ -44,7 +44,7 @@
         .wam-map-header .wam-eyebrow{font-size:16px;margin:0 0 9px;letter-spacing:4px}.wam-map-header h1{font-size:32px;margin:0;color:#ffe7af;letter-spacing:.6px}.wam-map-header p{margin:12px 0 0;font-size:23px;color:#ffeac9}
         .wam-map-home{position:absolute;left:25px;top:35px;width:78px;height:78px;padding:0;font-size:44px!important}
         .wam-map-scroll{position:absolute;top:167px;bottom:197px;left:0;right:0;overflow-y:auto;overflow-x:hidden;touch-action:pan-y;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#eb80b0 #231128;-webkit-overflow-scrolling:touch;background:#140a22}
-        .wam-map-world{position:relative;width:100%;height:2400px;background:url('road_map_candy_lounge_v2.png') center/100% 100% no-repeat}
+        .wam-map-world{position:relative;width:100%;height:3000px;background:url('road_map_candy_lounge_v2.png') center/100% 100% no-repeat}
         .wam-map-stop{position:absolute;width:230px;transform:translate(-50%,-50%);text-align:center;color:#fff}
         .wam-map-node{position:relative;display:block;margin:0 auto;width:96px;height:96px;border:5px solid #ffec9c;border-radius:50%;background:radial-gradient(circle at 30% 20%,#ff92c4,#e51c82 50%,#940b50);color:#fff;font-size:44px;font-weight:900;text-shadow:0 3px #590b36;box-shadow:0 6px 0 #781642,0 0 0 4px #6b2352;touch-action:pan-y!important}
         .wam-map-node.complete{background:radial-gradient(circle at 30% 20%,#6cf8ec,#138c95 60%,#145169)}.wam-map-node.locked{background:linear-gradient(#524156,#27202f);border-color:#b89769;color:#d0bbc7;text-shadow:none;box-shadow:0 5px 0 #191021}.wam-map-node.current{box-shadow:0 5px 0 #791445,0 0 0 6px #fff5aa,0 0 28px #ffba37}
@@ -59,7 +59,7 @@
     }
     focus(id,smooth=true){
       this.selected=id;const point=this.nodes[id-1];
-      this.scroller.scrollTo({top:Math.max(0,2400*point.y/100-this.scroller.clientHeight*.56),behavior:smooth&&!matchMedia('(prefers-reduced-motion: reduce)').matches?'smooth':'instant'});
+      this.scroller.scrollTo({top:Math.max(0,this.world.clientHeight*point.y/100-this.scroller.clientHeight*.56),behavior:smooth&&!matchMedia('(prefers-reduced-motion: reduce)').matches?'smooth':'instant'});
       point.node.focus({preventScroll:true});
     }
     preview(id){
