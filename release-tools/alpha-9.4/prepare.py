@@ -32,6 +32,11 @@ text = home.read_text()
 old = 'Math.max(1, Math.min(5, readNumber("wambam-selected-level", 1)))'
 assert old in text, 'Expected original home progress label'
 text = text.replace(old, 'window.WamCampaign.progress(window.WamUI.storage).selected', 1)
+# Map and game navigation replace scenes. Replace Home too so returning to it
+# does not leave another inactive Home scene underneath on every visit.
+old = 'gdjs.evtTools.runtimeScene.pushScene(runtimeScene, "Level Map");'
+assert old in text, 'Expected original Home-to-map navigation'
+text = text.replace(old, 'gdjs.evtTools.runtimeScene.replaceScene(runtimeScene, "Level Map", false);', 1)
 text = text.replace('Clear 4 handbags in Level 5.', 'Clear 4 handbags in Levels 5 or 8.')
 home.write_text(text)
 
