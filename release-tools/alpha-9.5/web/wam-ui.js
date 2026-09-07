@@ -12,7 +12,7 @@
     .wam-button.secondary{background:linear-gradient(#503958,#261930);border-color:#ad849f;font-size:21px}
     .wam-button.cyan{background:linear-gradient(#67f4e8,#179aa7);color:#152b35}
     .wam-shade{position:absolute;inset:0;z-index:1000;background:#16091ecc;display:flex;align-items:center;justify-content:center;padding:32px;touch-action:none}
-    .wam-dialog{width:610px;max-height:1120px;overflow:auto;border:5px solid #ffc95e;border-radius:34px;background:radial-gradient(ellipse at top,#74204c,#25112d 65%);box-shadow:0 0 0 5px #9d1a60,0 20px 60px #0008;padding:42px 34px;text-align:center}
+    .wam-dialog{width:610px;max-height:1120px;overflow:auto;border:5px solid #ffc95e;border-radius:34px;background:radial-gradient(ellipse at top,#74204c,#25112d 65%);box-shadow:0 0 0 5px #9d1a60,0 20px 60px #0008;padding:42px 34px;text-align:center;touch-action:pan-y;overscroll-behavior:contain}
     .wam-dialog h2{font-size:39px;line-height:1.15;margin:0 0 16px;color:#ffe8b0}.wam-dialog p{font-size:25px;line-height:1.4;margin:20px 0;color:#fff1e7}.wam-dialog .wam-button{display:block;width:100%;margin-top:18px}
     .wam-eyebrow{color:#6df5e7;font-weight:900;letter-spacing:3px;font-size:19px;margin-bottom:16px}.wam-stars{color:#ffd968;font-size:43px;letter-spacing:8px;margin:12px 0}
     .wam-target-list{display:flex;justify-content:center;gap:14px;margin:25px 0}.wam-target-card{display:flex;flex-direction:column;align-items:center;justify-content:center;width:148px;border:2px solid #99597e;border-radius:22px;padding:12px 8px;background:#fff2cf;color:#40102f;font-size:26px;font-weight:900}.wam-target-card img{width:78px;height:78px;object-fit:contain;border-radius:12px;mix-blend-mode:multiply}.wam-target-card small{font-size:15px;line-height:1.2;min-height:34px;margin-top:7px}
@@ -57,7 +57,7 @@
     style();document.getElementById('wambam-home-effects')?.remove();document.getElementById('wambam-mobile-screen-bg')?.remove();
     document.getElementById('wambam-curtain-transition')?.remove();
     const host=el('div','wam-host');host.id=id;
-    if(background)host.style.backgroundImage=`linear-gradient(#13081bc9,#13081bc9),url('${background}')`;
+    host.style.backgroundImage='radial-gradient(ellipse at center,#45203c,#170b20 70%)';
     host.style.backgroundSize='cover';
     const stage=el('div','wam-stage');host.append(stage);document.body.append(host);
     const canvas=document.querySelector('canvas');if(canvas)canvas.style.visibility='hidden';

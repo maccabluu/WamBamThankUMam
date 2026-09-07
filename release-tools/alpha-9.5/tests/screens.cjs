@@ -46,6 +46,7 @@ async function main(){
       await page.getByRole('dialog').getByRole('button',{name:`PLAY LEVEL ${level}`,exact:true}).click();
       await page.locator('.wam-grid').waitFor();await page.waitForFunction(()=>[...document.querySelectorAll('.wam-cell img')].every(img=>!img.getAttribute('src')||img.complete&&img.naturalWidth>0));
       assert.equal(await page.locator('.wam-cell').count(),await page.evaluate(()=>qa.scene.__wam94Game.game.rows*qa.scene.__wam94Game.game.cols));
+      await page.locator('.wam-toast').waitFor({state:'detached',timeout:5000});
       await page.screenshot({path:path.join(screenshots,`level-${level}-phone.png`)});
       assert.equal(await page.evaluate(()=>qa.scene.__wam94Game.config.id),level);
       const move=await page.evaluate(()=>qa.scene.__wam94Game.game.findMove());
@@ -61,6 +62,10 @@ async function main(){
     // Four distinct areas, an expandable level list, and persisted decoration spending.
     await page.getByRole('button',{name:'MY AREAS',exact:true}).click();
     assert.equal(await page.locator('.wam-room-card').count(),4);
+    await page.locator('.wam-dialog').hover();await page.mouse.wheel(0,650);
+    await page.waitForFunction(()=>document.querySelector('.wam-dialog').scrollTop>0);
+    assert.equal(await page.getByRole('button',{name:'BACK TO MAP',exact:true}).isVisible(),true);
+    await page.mouse.wheel(0,-1500);await page.waitForFunction(()=>document.querySelector('.wam-dialog').scrollTop===0);
     await page.getByRole('button',{name:'Neon sign · 2 stars',exact:true}).click();
     assert.equal(await page.locator('.wam-room-scene').first().getAttribute('data-d0'),'true');
     assert.equal(await page.getByRole('button',{name:'✓ Neon sign',exact:true}).isDisabled(),true);

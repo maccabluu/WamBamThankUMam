@@ -41,6 +41,7 @@
         .wam-map-footer{position:absolute;left:0;right:0;bottom:0;height:197px;padding:18px 24px 24px;background:linear-gradient(#241128,#170d22);border-top:3px solid #9c4475;z-index:30}.wam-map-footer>.wam-button{width:100%;margin-top:14px}
         .wam-map-actions{display:flex;gap:10px}.wam-map-actions .wam-button{flex:1;min-height:52px;padding:10px 4px;font-size:19px}
         .wam-level-picker{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:25px 0}.wam-level-picker .wam-button{min-height:80px;border-radius:16px;padding:7px;font-size:26px;margin:0}.wam-level-picker small{display:block;font-size:12px;margin-top:6px}
+        .wam-room-back{position:sticky;top:0;z-index:20;box-shadow:0 7px 12px #170b20!important}
         .wam-room-card{padding:18px;border:2px solid #86506f;border-radius:24px;margin-top:20px;background:#29162f}.wam-room-card h3{font-size:29px;color:#ffe2a6;margin:8px}.wam-room-card p{font-size:21px}.wam-room-card .wam-button{font-size:20px;padding:12px}.wam-room-card.locked{opacity:.65}
         .wam-room-scene{height:250px;position:relative;overflow:hidden;border:2px solid #bb7a94;border-radius:18px;background:linear-gradient(#1b132b 65%,#533148 65%,#301a2c);margin:15px 0}.wam-room-scene:before{content:'';position:absolute;top:15px;left:8%;right:8%;height:180px;border:3px solid #623348;border-radius:70px 70px 0 0;background:repeating-linear-gradient(90deg,#482131 0 20px,#371825 20px 35px)}
         .wam-room-scene{border-color:var(--room-colour)}.room-object{display:none;width:100%;height:100%;object-fit:contain;mix-blend-mode:screen}.wam-room-scene[data-d0=true] .wam-room-sign .room-object,.wam-room-scene[data-d1=true] .wam-room-seat .room-object,.wam-room-scene[data-d2=true] .wam-room-feature .room-object{display:block}
@@ -91,6 +92,7 @@
     }
     rooms(){
       this.stage.querySelector('.wam-shade')?.remove();const state=C.renovation(storage),modal=dialog(this.stage,'Make Wam Bam yours',`${state.available} decoration stars available. Earn one for each level you complete for the first time.`);
+      const back=button('BACK TO MAP',()=>modal.close(),'secondary');back.classList.add('wam-room-back');modal.card.append(back);
       C.AREAS.forEach((area,a)=>{
         const locked=state.earned<area.from-1,card=el('section','wam-room-card'+(locked?' locked':''));card.append(el('h3','',area.name));
         const scene=el('div','wam-room-scene');scene.dataset.area=String(a);scene.style.setProperty('--room-colour',area.colour);scene.setAttribute('role','img');scene.setAttribute('aria-label',`${area.name}: ${state.decorated[a].filter(Boolean).length} of 4 decorations added`);state.decorated[a].forEach((done,i)=>scene.dataset['d'+i]=String(done));
@@ -102,7 +104,7 @@
         scene.append(sign,seat,feature,floor);card.append(scene);
         if(locked)card.append(el('p','',`Complete Level ${area.from-1} to decorate this area.`));
         area.items.forEach((name,i)=>{const done=state.decorated[a][i],cost=C.DECOR_COSTS[i],b=button(done?`✓ ${name}`:`${name} · ${cost} stars`,()=>{if(C.decorate(storage,a,i)){U.audio('coin');modal.close();this.rooms();}},done?'secondary':'cyan');b.disabled=done||locked||state.available<cost;card.append(b);});modal.card.append(card);
-      });modal.card.append(button('BACK TO MAP',()=>modal.close(),'secondary'));
+      });
     }
     start(id){if(id>this.progress.unlocked||this.disposed)return;C.write(storage,'wambam-selected-level',id);this.navigate('Game');}
     navigate(name){this.scene.__wam94NextScene=name;this.dispose();}
