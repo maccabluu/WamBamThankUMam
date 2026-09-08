@@ -62,7 +62,7 @@
       const heading=el('div','wam-area-title');heading.append(el('div','wam-eyebrow',`AREA ${index+1}`),el('h2','',area.name),el('p','',`Levels ${area.from} to ${area.to} · Complete levels to decorate`));this.world.append(heading);
       const configs=C.levels.slice(index*10,index*10+10);
       // Centres of ten gold markers in the supplied 768 x 1365 artwork.
-      const markers=[[236,1126],[343,1088],[440,974],[275,869],[158,809],[161,551],[225,463],[386,398],[520,313],[338,281]];
+      const markers=[[236,1126],[343,1088],[440,974],[275,869],[158,809],[161,551],[307,422],[466,410],[607,338],[338,281]];
       const points=markers.map(([x,y])=>({x:x*720/768,y:y*1280/1365}));
       configs.forEach((config,i)=>{
         const {x,y}=points[i],locked=config.id>this.progress.unlocked,completed=config.id<this.progress.unlocked||config.id<=this.progress.highest;
