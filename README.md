@@ -2,7 +2,20 @@
 
 Native Android match-3 game in Alpha.
 
-## Latest gameplay update: Alpha 9.4.0
+## Latest gameplay update: Alpha 9.5.0
+
+- [Download Wam Bam Alpha 9.5.0 for Android](https://github.com/maccabluu/WamBamThankUMam/releases/download/v9.5.0/WamBam_Alpha_9.5.0_40_Levels.apk)
+- [Read the Alpha 9.5.0 release notes](https://github.com/maccabluu/WamBamThankUMam/releases/tag/v9.5.0)
+
+Play 40 levels across four map areas, with nine board shapes, gift boxes, ice, handbag obstacles, Flying Kiss specials and combined power-ups. Preview each level's board and targets before starting, then use the level list or My Level to find your next challenge.
+
+First-time level completions earn decoration stars for 16 upgrades across four areas. Existing saved progress and best ratings are retained, alongside the original Wam Bam artwork and home screen.
+
+Automated checks cover gameplay rules, all 40 levels, power-up combinations, touch controls, Home navigation and phone/tablet layouts. The signed APK uses the existing signing certificate and package `com.macca.wambamthankumam`, with version code `95000` and version name `9.5.0`. Physical Android device testing is still pending.
+
+Editable game modules and the reproducible APK update script are in [release-tools/alpha-9.5](release-tools/alpha-9.5).
+
+## Previous gameplay update: Alpha 9.4.0
 
 - [Download Wam Bam Alpha 9.4.0 for Android](https://github.com/maccabluu/WamBamThankUMam/releases/download/v9.4.0/WamBam_Alpha_9.4.0_Levels_6_to_9.apk)
 - [Read the Alpha 9.4.0 release notes](release-tools/alpha-9.4/RELEASE_NOTES.md)
