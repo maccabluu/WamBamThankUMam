@@ -2,7 +2,20 @@
 
 Native Android match-3 game in Alpha.
 
-## Latest gameplay update: Alpha 9.5.0
+## Latest gameplay update: Alpha 9.6.0
+
+- [Download Wam Bam Alpha 9.6.0 for Android](https://github.com/maccabluu/WamBamThankUMam/releases/download/v9.6.0/WamBam_Alpha_9.6.0_40_Levels.apk)
+- [Read the Alpha 9.6.0 release notes](https://github.com/maccabluu/WamBamThankUMam/releases/tag/v9.6.0)
+
+The road map now uses the supplied Wam Bam artwork, with working level buttons over gold markers. Area tabs, saved ratings, previews and My Level navigation remain available.
+
+Levels 1 to 9 now share the shaped boards and square tile style used by later levels. Levels 21 to 30 use the new Disco Diner background. All 40 levels, saved progress, special combinations and area decorations are retained.
+
+The APK uses version `9.6.0`, version code `96000` and the existing signing identity. Automated gameplay, screen and touch checks run before signing. Physical-device testing is pending.
+
+Source and build tools: [release-tools/alpha-9.6](release-tools/alpha-9.6).
+
+## Previous gameplay update: Alpha 9.5.0
 
 - [Download Wam Bam Alpha 9.5.0 for Android](https://github.com/maccabluu/WamBamThankUMam/releases/download/v9.5.0/WamBam_Alpha_9.5.0_40_Levels.apk)
 - [Read the Alpha 9.5.0 release notes](https://github.com/maccabluu/WamBamThankUMam/releases/tag/v9.5.0)
