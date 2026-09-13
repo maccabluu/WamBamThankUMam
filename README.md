@@ -2,7 +2,13 @@
 
 Native Android match-3 game in Alpha.
 
-## Latest gameplay update: Alpha 9.6.0
+## Alpha 10.2.0 — Bam Lounge makeover and home wink fix
+
+The next 40-level update adds five illustrated Bam Lounge stages: empty room, neon sign, velvet seating, jukebox and dance floor. Upgrades unlock in order for 2, 3, 2 and 3 decoration stars, with a ROOM COMPLETE! sign after the final purchase. The home-screen wink is repositioned over the eye and moves with the character's head.
+
+The signed APK is prepared; the GitHub release download is awaiting upload. The current downloadable version is Alpha 9.6.0 below.
+
+## Latest downloadable update: Alpha 9.6.0
 
 - [Download Wam Bam Alpha 9.6.0 for Android](https://github.com/maccabluu/WamBamThankUMam/releases/download/v9.6.0/WamBam_Alpha_9.6.0_40_Levels.apk)
 - [Read the Alpha 9.6.0 release notes](https://github.com/maccabluu/WamBamThankUMam/releases/tag/v9.6.0)
