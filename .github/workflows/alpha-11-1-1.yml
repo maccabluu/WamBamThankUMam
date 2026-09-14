@@ -1,0 +1,136 @@
+name: Wam Bam Alpha 11.1.1 New Home
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'release-tools/alpha-11.1.1/**'
+      - '.github/workflows/alpha-11-1-1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wam1111-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Download verified Alpha 11.1.0 base
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o base.apk https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.1.0/WamBam_Alpha_11.1.0_Wam_World.apk
+          echo '684edb0c3482d9e1ca949a0539fce822e88a602a6c5ada3c9fecd5804b73648d  base.apk' | sha256sum -c -
+          curl -fL --retry 3 -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          java -jar apktool.jar d -f base.apk -o work
+      - name: Download exact new home artwork
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o WamBam_Home_11.1.1.jpg 'https://d2jqrm6oza8nb6.cloudfront.net/datasets/bd597957-a106-4f5f-8150-85f9dcb65428.jpg?_jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlIYXNoIjoiY2E2OGRmNTQ5OTBkODhkNCIsImJ1Y2tldCI6InJ1bndheS1kYXRhc2V0cyIsInN0YWdlIjoicHJvZCIsImV4cCI6MTc4OTUyMTc0OH0.txB-SvAcxwkGaAUd9CtaLpjCMaxfhx3-6S96k6WzD4Q'
+          echo 'a5dc5411cf75a9d2268d3580a978f06b324dd9a8bbd946a12c490dd759d21775  WamBam_Home_11.1.1.jpg' | sha256sum -c -
+      - name: Apply new home screen and controls
+        run: |
+          set -euo pipefail
+          python3 release-tools/alpha-11.1.1/prepare.py work/assets/www WamBam_Home_11.1.1.jpg
+          node --check work/assets/www/home-controls-111.js
+          node --check work/assets/www/wam-world.js
+          node --check work/assets/www/wam-campaign.js
+          grep -q 'home-controls-111.js' work/assets/www/index.html
+          grep -q 'WamHome111.attachHome' work/assets/www/code0.js
+          grep -q "11.1.1" work/assets/www/wam-campaign.js
+          grep -q "Wam World" work/assets/www/home-controls-111.js
+          grep -q "window.WamWorld?.open" work/assets/www/home-controls-111.js
+          test "$(sha256sum work/assets/www/home_screen_v2.jpg | cut -d' ' -f1)" = 'a5dc5411cf75a9d2268d3580a978f06b324dd9a8bbd946a12c490dd759d21775'
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('work/apktool.yml'); s=p.read_text()
+          s,n=re.subn(r'(?m)^(\s*versionCode:\s*).+$',r'\g<1>110101',s,count=1)
+          s,m=re.subn(r'(?m)^(\s*versionName:\s*).+$',r'\g<1>11.1.1',s,count=1)
+          assert n==m==1
+          p.write_text(s)
+          PY
+      - name: Verify home button wiring
+        run: |
+          set -euo pipefail
+          for label in "Play" "Events" "Shop" "Wam World" "Settings" "VIP" "Player profile"; do grep -q "$label" work/assets/www/home-controls-111.js; done
+          grep -q "replaceScene(currentRuntime,'Level Map'" work/assets/www/home-controls-111.js
+          grep -q "pushScene(currentRuntime,'Settings'" work/assets/www/home-controls-111.js
+          grep -q "WamWorld?.open" work/assets/www/home-controls-111.js
+      - name: Build Android APK
+        run: |
+          sdkmanager 'build-tools;35.0.0'
+          java -jar apktool.jar b work -o WamBam-11.1.1-unsigned.apk
+      - name: Sign and verify existing Wam Bam identity
+        env:
+          WB_KEYSTORE_B64: ${{ secrets.WB_KEYSTORE_B64 }}
+          WB_KEYSTORE_PASSWORD: ${{ secrets.WB_KEYSTORE_PASSWORD }}
+          WB_KEY_ALIAS: ${{ secrets.WB_KEY_ALIAS }}
+          WB_KEY_PASSWORD: ${{ secrets.WB_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for value in WB_KEYSTORE_B64 WB_KEYSTORE_PASSWORD WB_KEY_ALIAS WB_KEY_PASSWORD; do
+            test -n "${!value:-}" || { echo "Missing existing signing secret: $value"; exit 1; }
+          done
+          printf '%s' "$WB_KEYSTORE_B64" | base64 -d > release.keystore
+          trap 'rm -f release.keystore' EXIT
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/zipalign" -f 4 WamBam-11.1.1-unsigned.apk aligned.apk
+          "$BT/apksigner" sign --ks release.keystore --ks-pass env:WB_KEYSTORE_PASSWORD --ks-key-alias "$WB_KEY_ALIAS" --key-pass env:WB_KEY_PASSWORD --out WamBam_Alpha_11.1.1_New_Home.apk aligned.apk
+          "$BT/apksigner" verify --verbose --print-certs WamBam_Alpha_11.1.1_New_Home.apk > signature.txt
+          "$BT/apksigner" verify --print-certs base.apk > base-signature.txt
+          test "$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' signature.txt)" = "$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' base-signature.txt)"
+          "$BT/zipalign" -c 4 WamBam_Alpha_11.1.1_New_Home.apk
+          "$BT/aapt" dump badging WamBam_Alpha_11.1.1_New_Home.apk > package.txt
+          grep -q "package: name='com.macca.wambamthankumam' versionCode='110101' versionName='11.1.1'" package.txt
+          sha256sum WamBam_Alpha_11.1.1_New_Home.apk > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WamBam-Alpha-11.1.1-New-Home
+          path: |
+            WamBam_Alpha_11.1.1_New_Home.apk
+            WamBam_Home_11.1.1.jpg
+            SHA256SUMS.txt
+            signature.txt
+            package.txt
+          retention-days: 30
+      - name: Publish verified new home update
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v11.1.1
+          name: Wam Bam Alpha 11.1.1 - New Main Page
+          prerelease: true
+          body: |
+            New Wam Bam main page using the supplied artwork.
+
+            Working home controls:
+            - PLAY opens the real level map.
+            - EVENTS opens Wam Bam events.
+            - SHOP opens the booster shop.
+            - WAM WORLD opens the existing Wam World entrance.
+            - SETTINGS opens the real settings screen.
+            - Heart/coin plus buttons open the shop.
+            - Player portrait opens profile progress.
+            - VIP responds with the reserved VIP panel.
+
+            Existing 100-level campaign, saves, boosters, Wam World, boss levels and match-3 gameplay are retained.
+            Package: com.macca.wambamthankumam.
+            Signed with the existing Wam Bam identity.
+          files: |
+            WamBam_Alpha_11.1.1_New_Home.apk
+            WamBam_Home_11.1.1.jpg
+            SHA256SUMS.txt
