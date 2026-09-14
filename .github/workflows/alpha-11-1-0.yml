@@ -1,0 +1,126 @@
+name: Wam Bam Alpha 11.1.0 Wam World
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'release-tools/alpha-11.1.0/**'
+      - '.github/workflows/alpha-11-1-0.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wam1110-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Download and verify Alpha 11.0.4 base
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o base.apk https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.0.4/WamBam_Alpha_11.0.4_Recovery.apk
+          echo 'ee8c0d91d2defbda50adc55a3bfef91f5f6054c69e9b4e439e42491f18d5e548  base.apk' | sha256sum -c -
+          curl -fL --retry 3 -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          java -jar apktool.jar d -f base.apk -o work
+      - name: Integrate Wam World into real game
+        run: |
+          set -euo pipefail
+          python3 release-tools/alpha-11.1.0/prepare.py work/assets/www
+          node --check work/assets/www/wam-world.js
+          node --check work/assets/www/wam-campaign.js
+          node --check work/assets/www/wam-ui.js
+          grep -q 'wam-world.js' work/assets/www/index.html
+          grep -q 'WamWorld.attachHome' work/assets/www/code0.js
+          grep -q "11.1.0" work/assets/www/wam-campaign.js
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('work/apktool.yml'); s=p.read_text()
+          s,n=re.subn(r'(?m)^(\s*versionCode:\s*).+$',r'\g<1>110100',s,count=1)
+          s,m=re.subn(r'(?m)^(\s*versionName:\s*).+$',r'\g<1>11.1.0',s,count=1)
+          assert n==m==1
+          p.write_text(s)
+          PY
+      - name: Static Wam World checks
+        run: |
+          set -euo pipefail
+          grep -q 'BAM LOUNGE' work/assets/www/wam-world.js
+          grep -q 'MEET THE CREW' work/assets/www/wam-world.js
+          grep -q 'BOSS BATTLES' work/assets/www/wam-world.js
+          grep -q 'wambam-world-lounge-stage' work/assets/www/wam-world.js
+          grep -q 'replaceScene(currentRuntime' work/assets/www/wam-world.js
+          grep -q 'wam-boss-hud' work/assets/www/wam-world.js
+      - name: Build Android APK
+        run: |
+          sdkmanager 'build-tools;35.0.0'
+          java -jar apktool.jar b work -o WamBam-11.1.0-unsigned.apk
+      - name: Sign and verify existing Wam Bam identity
+        env:
+          WB_KEYSTORE_B64: ${{ secrets.WB_KEYSTORE_B64 }}
+          WB_KEYSTORE_PASSWORD: ${{ secrets.WB_KEYSTORE_PASSWORD }}
+          WB_KEY_ALIAS: ${{ secrets.WB_KEY_ALIAS }}
+          WB_KEY_PASSWORD: ${{ secrets.WB_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for value in WB_KEYSTORE_B64 WB_KEYSTORE_PASSWORD WB_KEY_ALIAS WB_KEY_PASSWORD; do
+            test -n "${!value:-}" || { echo "Missing existing signing secret: $value"; exit 1; }
+          done
+          printf '%s' "$WB_KEYSTORE_B64" | base64 -d > release.keystore
+          trap 'rm -f release.keystore' EXIT
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/zipalign" -f 4 WamBam-11.1.0-unsigned.apk aligned.apk
+          "$BT/apksigner" sign --ks release.keystore --ks-pass env:WB_KEYSTORE_PASSWORD --ks-key-alias "$WB_KEY_ALIAS" --key-pass env:WB_KEY_PASSWORD --out WamBam_Alpha_11.1.0_Wam_World.apk aligned.apk
+          "$BT/apksigner" verify --verbose --print-certs WamBam_Alpha_11.1.0_Wam_World.apk > signature.txt
+          "$BT/apksigner" verify --print-certs base.apk > base-signature.txt
+          test "$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' signature.txt)" = "$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' base-signature.txt)"
+          "$BT/zipalign" -c 4 WamBam_Alpha_11.1.0_Wam_World.apk
+          "$BT/aapt" dump badging WamBam_Alpha_11.1.0_Wam_World.apk > package.txt
+          grep -q "package: name='com.macca.wambamthankumam' versionCode='110100' versionName='11.1.0'" package.txt
+          sha256sum WamBam_Alpha_11.1.0_Wam_World.apk > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WamBam-Alpha-11.1.0-Wam-World
+          path: |
+            WamBam_Alpha_11.1.0_Wam_World.apk
+            SHA256SUMS.txt
+            signature.txt
+            package.txt
+          retention-days: 30
+      - name: Publish verified Wam World update
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v11.1.0
+          name: Wam Bam Alpha 11.1.0 - Wam World
+          prerelease: true
+          body: |
+            Adds Wam World to the real Wam Bam 11.x game.
+
+            New features:
+            - Wam World entrance on the existing home screen.
+            - Bam Lounge chapter with four saved upgrade stages.
+            - Story scenes with Ruby Ray, Lola Luxe, Johnny Jive and Frankie Flash.
+            - Boss presentation on every 10th campaign level.
+            - Boss health meter driven by the real level targets.
+            - Boss menu launches the real match-3 Game scene.
+
+            Existing campaign, saves, boosters, map, backgrounds and room systems are retained.
+            Package: com.macca.wambamthankumam.
+            Signed with the existing Wam Bam identity.
+          files: |
+            WamBam_Alpha_11.1.0_Wam_World.apk
+            SHA256SUMS.txt
