@@ -1,0 +1,103 @@
+name: Wam Bam Alpha 11.0.4 Recovery
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/alpha-11-0-4-recovery.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wam1104-recovery-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+
+      - name: Download verified Alpha 11.0.3 base
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o base.apk https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.0.3/WamBam_Alpha_11.0.3_New_Level_Background.apk
+          echo '381e7ae3efb355c1316b0eb9f1f61146dee9d5d1bfadc87b2985be89e02fc1fa  base.apk' | sha256sum -c -
+          curl -fL --retry 3 -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          java -jar apktool.jar d -f base.apk -o work
+
+      - name: Bump version only
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('work/apktool.yml')
+          s=p.read_text()
+          s,n=re.subn(r'(?m)^(\s*versionCode:\s*).+$',r'\g<1>110004',s,count=1)
+          s,m=re.subn(r'(?m)^(\s*versionName:\s*).+$',r'\g<1>11.0.4',s,count=1)
+          assert n==m==1
+          p.write_text(s)
+          PY
+
+      - name: Rebuild APK
+        run: |
+          sdkmanager 'build-tools;35.0.0'
+          java -jar apktool.jar b work -o WamBam-11.0.4-unsigned.apk
+
+      - name: Sign with existing Wam Bam identity
+        env:
+          WB_KEYSTORE_B64: ${{ secrets.WB_KEYSTORE_B64 }}
+          WB_KEYSTORE_PASSWORD: ${{ secrets.WB_KEYSTORE_PASSWORD }}
+          WB_KEY_ALIAS: ${{ secrets.WB_KEY_ALIAS }}
+          WB_KEY_PASSWORD: ${{ secrets.WB_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for value in WB_KEYSTORE_B64 WB_KEYSTORE_PASSWORD WB_KEY_ALIAS WB_KEY_PASSWORD; do
+            test -n "${!value:-}" || { echo "Missing existing signing secret: $value"; exit 1; }
+          done
+          printf '%s' "$WB_KEYSTORE_B64" | base64 -d > release.keystore
+          trap 'rm -f release.keystore' EXIT
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/zipalign" -f 4 WamBam-11.0.4-unsigned.apk aligned.apk
+          "$BT/apksigner" sign --ks release.keystore --ks-pass env:WB_KEYSTORE_PASSWORD --ks-key-alias "$WB_KEY_ALIAS" --key-pass env:WB_KEY_PASSWORD --out WamBam_Alpha_11.0.4_Recovery.apk aligned.apk
+          "$BT/apksigner" verify --verbose --print-certs WamBam_Alpha_11.0.4_Recovery.apk > signature.txt
+          "$BT/apksigner" verify --print-certs base.apk > base-signature.txt
+          test "$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' signature.txt)" = "$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' base-signature.txt)"
+          "$BT/zipalign" -c 4 WamBam_Alpha_11.0.4_Recovery.apk
+          "$BT/aapt" dump badging WamBam_Alpha_11.0.4_Recovery.apk > package.txt
+          grep -q "package: name='com.macca.wambamthankumam' versionCode='110004' versionName='11.0.4'" package.txt
+          sha256sum WamBam_Alpha_11.0.4_Recovery.apk > SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WamBam-Alpha-11.0.4-Recovery-APK
+          path: |
+            WamBam_Alpha_11.0.4_Recovery.apk
+            SHA256SUMS.txt
+            signature.txt
+            package.txt
+          retention-days: 14
+
+      - name: Publish recovery update
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v11.0.4
+          name: Wam Bam Alpha 11.0.4 - Recovery Update
+          prerelease: true
+          body: |
+            Recovery update built directly from Alpha 11.0.3.
+
+            Keeps the existing Wam Bam app package and data path.
+            Signed with the existing Wam Bam identity.
+            Version code increased to 110004 for an in-place update.
+          files: |
+            WamBam_Alpha_11.0.4_Recovery.apk
+            SHA256SUMS.txt
