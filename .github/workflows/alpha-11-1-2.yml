@@ -1,0 +1,135 @@
+name: Wam Bam Alpha 11.1.2 Input Fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'release-tools/alpha-11.1.2/**'
+      - '.github/workflows/alpha-11-1-2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wam1112-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+
+      - name: Download verified Alpha 11.1.1 base
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o base.apk https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.1.1/WamBam_Alpha_11.1.1_New_Home.apk
+          echo 'c5c5b82484644d31e02c0a32da1f6d0ee7e1a949f3e2a7e9dcb62e31211f53c0  base.apk' | sha256sum -c -
+          curl -fL --retry 3 -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          java -jar apktool.jar d -f base.apk -o work
+
+      - name: Apply input and navigation fixes
+        run: |
+          set -euo pipefail
+          python3 release-tools/alpha-11.1.2/prepare.py work/assets/www
+          node --check work/assets/www/home-controls-111.js
+          node --check work/assets/www/wam-world.js
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('work/apktool.yml'); s=p.read_text()
+          s,n=re.subn(r'(?m)^(\s*versionCode:\s*).+$',r'\g<1>110102',s,count=1)
+          s,m=re.subn(r'(?m)^(\s*versionName:\s*).+$',r'\g<1>11.1.2',s,count=1)
+          assert n==m==1
+          p.write_text(s)
+          PY
+
+      - name: Verify PLAY and Wam World controls
+        run: |
+          set -euo pipefail
+          grep -q 'wam111-blocked' work/assets/www/home-controls-111.js
+          grep -q 'setBlocked(true)' work/assets/www/home-controls-111.js
+          grep -q "replaceScene(currentRuntime,'Game',false)" work/assets/www/home-controls-111.js
+          grep -q "projectData?.layouts" work/assets/www/home-controls-111.js
+          grep -q 'pointer-events:auto!important' work/assets/www/wam-world.js
+          grep -q 'ww-back-home' work/assets/www/wam-world.js
+          grep -q '← BACK' work/assets/www/wam-world.js
+          grep -q 'close(resumeHome=true)' work/assets/www/wam-world.js
+          grep -q 'setBlocked?.(false)' work/assets/www/wam-world.js
+          grep -q 'setBlocked?.(true)' work/assets/www/wam-world.js
+          grep -q "11.1.2" work/assets/www/wam-campaign.js
+
+      - name: Build Android APK
+        run: |
+          set -euo pipefail
+          sdkmanager 'build-tools;35.0.0'
+          java -jar apktool.jar b work -o WamBam-11.1.2-unsigned.apk
+
+      - name: Sign and verify existing Wam Bam identity
+        env:
+          WB_KEYSTORE_B64: ${{ secrets.WB_KEYSTORE_B64 }}
+          WB_KEYSTORE_PASSWORD: ${{ secrets.WB_KEYSTORE_PASSWORD }}
+          WB_KEY_ALIAS: ${{ secrets.WB_KEY_ALIAS }}
+          WB_KEY_PASSWORD: ${{ secrets.WB_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for value in WB_KEYSTORE_B64 WB_KEYSTORE_PASSWORD WB_KEY_ALIAS WB_KEY_PASSWORD; do
+            test -n "${!value:-}" || { echo "Missing existing signing secret: $value"; exit 1; }
+          done
+          printf '%s' "$WB_KEYSTORE_B64" | base64 -d > release.keystore
+          trap 'rm -f release.keystore' EXIT
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/zipalign" -f 4 WamBam-11.1.2-unsigned.apk aligned.apk
+          "$BT/apksigner" sign --ks release.keystore --ks-pass env:WB_KEYSTORE_PASSWORD --ks-key-alias "$WB_KEY_ALIAS" --key-pass env:WB_KEY_PASSWORD --out WamBam_Alpha_11.1.2_Input_Fix.apk aligned.apk
+          "$BT/apksigner" verify --verbose --print-certs WamBam_Alpha_11.1.2_Input_Fix.apk > signature.txt
+          "$BT/apksigner" verify --print-certs base.apk > base-signature.txt
+          test "$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' signature.txt)" = "$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' base-signature.txt)"
+          "$BT/zipalign" -c 4 WamBam_Alpha_11.1.2_Input_Fix.apk
+          "$BT/aapt" dump badging WamBam_Alpha_11.1.2_Input_Fix.apk > package.txt
+          grep -q "package: name='com.macca.wambamthankumam' versionCode='110102' versionName='11.1.2'" package.txt
+          sha256sum WamBam_Alpha_11.1.2_Input_Fix.apk > SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WamBam-Alpha-11.1.2-Input-Fix
+          path: |
+            WamBam_Alpha_11.1.2_Input_Fix.apk
+            SHA256SUMS.txt
+            signature.txt
+            package.txt
+          retention-days: 30
+
+      - name: Publish verified input fix
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v11.1.2
+          name: Wam Bam Alpha 11.1.2 - Input Fix
+          prerelease: true
+          body: |
+            Fixes the main-screen and Wam World input problems reported in Alpha 11.1.1.
+
+            Fixes:
+            - PLAY now finds the real map scene when available and safely falls back to the real Game scene.
+            - Wam World cards are fully interactive.
+            - Home-screen invisible hitboxes are disabled while Wam World is open.
+            - Taps no longer fall through Wam World to VIP or other home controls.
+            - The X now closes Wam World without opening VIP.
+            - A visible BACK button returns from Wam World to the main page.
+            - Existing main-page artwork, campaign, saves, boosters, Wam World progress and boss levels are retained.
+
+            Package: com.macca.wambamthankumam.
+            Signed with the existing Wam Bam identity.
+          files: |
+            WamBam_Alpha_11.1.2_Input_Fix.apk
+            SHA256SUMS.txt
