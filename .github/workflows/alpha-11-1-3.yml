@@ -1,4 +1,4 @@
-name: Wam Bam Alpha 11.1.3 PLAY Fix
+name: Wam Bam Alpha 11.1.4 PLAY Fix
 
 on:
   push:
@@ -49,8 +49,8 @@ jobs:
           scenes=[layout['name'] for layout in json.loads(payload)['layouts']]
           assert scenes == ['Untitled scene','Level Map','Game','Settings'], scenes
           p=Path('work/apktool.yml'); s=p.read_text()
-          s,n=re.subn(r'(?m)^(\s*versionCode:\s*).+$',r'\g<1>110103',s,count=1)
-          s,m=re.subn(r'(?m)^(\s*versionName:\s*).+$',r'\g<1>11.1.3',s,count=1)
+          s,n=re.subn(r'(?m)^(\s*versionCode:\s*).+$',r'\g<1>110104',s,count=1)
+          s,m=re.subn(r'(?m)^(\s*versionName:\s*).+$',r'\g<1>11.1.4',s,count=1)
           assert n==m==1
           p.write_text(s)
           PY
@@ -59,19 +59,19 @@ jobs:
         run: |
           set -euo pipefail
           grep -Fq "if(mounted){controlsRoot=mounted;return}" work/assets/www/home-controls-111.js
-          grep -Fq "replaceScene(currentRuntime,'Level Map',false)" work/assets/www/home-controls-111.js
+          grep -Fq "__wamHomeNavigation={scene:'Level Map',push:false}" work/assets/www/home-controls-111.js
           ! grep -Fq "projectData?.layouts" work/assets/www/home-controls-111.js
           grep -Fq "wam111-blocked" work/assets/www/home-controls-111.js
           grep -Fq "setBlocked(true)" work/assets/www/home-controls-111.js
           grep -Fq "addEventListener('touchend',stop)" work/assets/www/wam-world.js
           grep -Fq "setBlocked?.(false)" work/assets/www/wam-world.js
-          grep -Fq "11.1.3" work/assets/www/wam-campaign.js
+          grep -Fq "11.1.4" work/assets/www/wam-campaign.js
 
       - name: Build Android APK
         run: |
           set -euo pipefail
           sdkmanager 'build-tools;35.0.0'
-          java -jar apktool.jar b work -o WamBam-11.1.3-unsigned.apk
+          java -jar apktool.jar b work -o WamBam-11.1.4-unsigned.apk
 
       - name: Sign and verify existing Wam Bam identity
         env:
@@ -87,21 +87,21 @@ jobs:
           printf '%s' "$WB_KEYSTORE_B64" | base64 -d > release.keystore
           trap 'rm -f release.keystore' EXIT
           BT="$ANDROID_HOME/build-tools/35.0.0"
-          "$BT/zipalign" -f 4 WamBam-11.1.3-unsigned.apk aligned.apk
-          "$BT/apksigner" sign --ks release.keystore --ks-pass env:WB_KEYSTORE_PASSWORD --ks-key-alias "$WB_KEY_ALIAS" --key-pass env:WB_KEY_PASSWORD --out WamBam_Alpha_11.1.3_PLAY_Fix.apk aligned.apk
-          "$BT/apksigner" verify --verbose --print-certs WamBam_Alpha_11.1.3_PLAY_Fix.apk > signature.txt
+          "$BT/zipalign" -f 4 WamBam-11.1.4-unsigned.apk aligned.apk
+          "$BT/apksigner" sign --ks release.keystore --ks-pass env:WB_KEYSTORE_PASSWORD --ks-key-alias "$WB_KEY_ALIAS" --key-pass env:WB_KEY_PASSWORD --out WamBam_Alpha_11.1.4_PLAY_Fix.apk aligned.apk
+          "$BT/apksigner" verify --verbose --print-certs WamBam_Alpha_11.1.4_PLAY_Fix.apk > signature.txt
           "$BT/apksigner" verify --print-certs base.apk > base-signature.txt
           test "$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' signature.txt)" = "$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' base-signature.txt)"
-          "$BT/zipalign" -c 4 WamBam_Alpha_11.1.3_PLAY_Fix.apk
-          "$BT/aapt" dump badging WamBam_Alpha_11.1.3_PLAY_Fix.apk > package.txt
-          grep -q "package: name='com.macca.wambamthankumam' versionCode='110103' versionName='11.1.3'" package.txt
-          sha256sum WamBam_Alpha_11.1.3_PLAY_Fix.apk > SHA256SUMS.txt
+          "$BT/zipalign" -c 4 WamBam_Alpha_11.1.4_PLAY_Fix.apk
+          "$BT/aapt" dump badging WamBam_Alpha_11.1.4_PLAY_Fix.apk > package.txt
+          grep -q "package: name='com.macca.wambamthankumam' versionCode='110104' versionName='11.1.4'" package.txt
+          sha256sum WamBam_Alpha_11.1.4_PLAY_Fix.apk > SHA256SUMS.txt
 
       - uses: actions/upload-artifact@v4
         with:
-          name: WamBam-Alpha-11.1.3-PLAY-Fix
+          name: WamBam-Alpha-11.1.4-PLAY-Fix
           path: |
-            WamBam_Alpha_11.1.3_PLAY_Fix.apk
+            WamBam_Alpha_11.1.4_PLAY_Fix.apk
             SHA256SUMS.txt
             signature.txt
             package.txt

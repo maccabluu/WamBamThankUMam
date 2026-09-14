@@ -90,12 +90,53 @@ assert.strictEqual(host.querySelector('#wambam-home-111'), controls,
   'home controls must retain DOM identity between frames');
 assert.strictEqual(play.parentNode, controls, 'PLAY must remain attached');
 
-play.onclick({ preventDefault() {}, stopPropagation() {} });
-assert.deepEqual(transitions, [{ runtime: secondRuntime, scene: 'Level Map', clear: false }]);
+// Load the actual packaged engine, including its frame reset and scene tools.
+const path = require('node:path');
+const root = path.dirname(process.argv[2]);
+context.gdjs.Logger = class { info() {} warn() {} error() {} };
+context.gdjs.RuntimeInstanceContainer = class {};
+context.gdjs.AsyncTask = class {};
+context.Hashtable = { newFrom: x => x };
+for(const name of ['runtimescene.js','events-tools/runtimescenetools.js','code0.js'])
+  vm.runInContext(fs.readFileSync(path.join(root,name),'utf8'),context);
+vm.runInContext(fs.readFileSync(path.join(root,'data.js'),'utf8'),context);
+const G=context.gdjs;
+for(const key of ['callbacksRuntimeScenePreEvents','callbacksRuntimeScenePostEvents'])G[key]=[];
+const runtime=Object.create(G.RuntimeScene.prototype);
+Object.assign(runtime,{
+  _requestedChange:0,_profiler:null,
+  _runtimeGame:{getMinimalFramerate:()=>20,getSceneAndExtensionsData:name=>G.projectData.layouts.find(x=>x.name===name)},
+  _timeManager:{update(){}},_asyncTasksManager:{processTasks(){}},
+  _updateObjectsPreEvents(){},_stepBehaviorsPostEvents(){},render(){},
+  _eventsFunction:G.Untitled_32sceneCode.eventsList0
+});
+// Keep UI boot/rendering outside this engine scheduling test.
+G.Untitled_32sceneCode.userFuncWamBoot=()=>{};
+context.window.WamHome111.attachHome(runtime);
+const click=button=>button.onclick({preventDefault(){},stopPropagation(){}});
+// Prove the old direct request is lost in the real engine frame.
+G.evtTools.runtimeScene.replaceScene(runtime,'Level Map',false);
+assert.equal(runtime.getRequestedChange(),G.SceneChangeRequest.REPLACE_SCENE);
+runtime.renderAndStep(16);
+assert.equal(runtime.getRequestedChange(),G.SceneChangeRequest.CONTINUE,'old direct DOM navigation is erased');
+click(play);
+runtime.renderAndStep(16);
+assert.equal(runtime.getRequestedChange(),G.SceneChangeRequest.REPLACE_SCENE);
+assert.equal(runtime.getRequestedScene(),'Level Map');
+const settings=controls.children.find(b=>b.attributes['aria-label']==='Settings');
+click(settings);
+runtime.renderAndStep(16);
+assert.equal(runtime.getRequestedChange(),G.SceneChangeRequest.PUSH_SCENE);
+assert.equal(runtime.getRequestedScene(),'Settings');
 
 context.window.WamHome111.setBlocked(true);
 assert.ok(controls.classList.contains('wam111-blocked'), 'Wam World must block home hitboxes');
-play.onclick({ preventDefault() {}, stopPropagation() {} });
-assert.equal(transitions.length, 1, 'PLAY must not navigate through Wam World');
+click(play);click(settings);
+runtime.renderAndStep(16);
+assert.equal(runtime.getRequestedChange(),G.SceneChangeRequest.CONTINUE,'overlay blocks both controls');
+context.window.WamHome111.setBlocked(false);
+click(play);runtime.renderAndStep(16);
+assert.equal(runtime.getRequestedScene(),'Level Map');
+assert.equal(runtime.getRequestedChange(),G.SceneChangeRequest.REPLACE_SCENE);
 
-console.log('Stable controls verified: PLAY opens Level Map and Wam World blocks navigation.');
+console.log('Actual packaged engine: reproduced erased direct request; queued PLAY and Settings survive frame reset; overlay blocks both and navigation resumes after close.');
