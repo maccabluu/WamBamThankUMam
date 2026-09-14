@@ -1,0 +1,41 @@
+name: Inspect Wam Bam 11.0.4 Runtime
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/inspect-11-0-4.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Decode real 11.0.4 APK
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o base.apk https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.0.4/WamBam_Alpha_11.0.4_Recovery.apk
+          curl -fL --retry 3 -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          java -jar apktool.jar d -f base.apk -o work >/dev/null
+      - name: Print runtime file list
+        run: |
+          find work/assets/www -maxdepth 2 -type f | sed 's#work/assets/www/##' | sort | head -200
+      - name: Print index and Wam hooks
+        run: |
+          echo '===== INDEX ====='
+          sed -n '1,260p' work/assets/www/index.html || true
+          echo '===== UI KEY HOOKS ====='
+          grep -nE "home|lounge|room|campaign|level|screen|button|modal|show|hide|open|start" work/assets/www/wam-ui.js | head -220 || true
+          echo '===== CAMPAIGN KEY HOOKS ====='
+          grep -nE "VERSION|level|campaign|complete|win|target|moves|room|map" work/assets/www/wam-campaign.js | head -220 || true
+          echo '===== DATA KEY HOOKS ====='
+          grep -nE "11.0.4|screen|home|room|campaign|level|lounge" work/assets/www/data.js | head -180 || true
+          echo '===== CODE FILE HOOKS ====='
+          for f in work/assets/www/code0.js work/assets/www/code1.js work/assets/www/code2.js work/assets/www/code3.js; do echo "--- $f"; grep -nE "home|screen|room|campaign|level|lounge|button|click|tap" "$f" | head -160 || true; done
