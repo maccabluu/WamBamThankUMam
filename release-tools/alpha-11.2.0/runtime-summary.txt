@@ -1,0 +1,1320 @@
+
+===== wam-campaign.js =====
+
+--- const\s+LEVELS ---
+tacles/crate.svg'},
+    flyer: {label:'Flying kiss', image:'icons/lips.png', card:true},
+    heart: {label: 'Purple heart', image: 'tile_heart_new.png'},
+    star: {label: 'Gold star', image: 'tile_star_new.png'},
+    diamond: {label: 'Diamond', image: 'tile_diamond_new.png'},
+    cherries: {label: 'Cherries', image: 'tile_cherries_new.png'},
+    bam: {label: 'BAM burst', image: 'tile_bam_new.png'},
+    disco: {label: 'Disco ball', image: 'tile_disco_new.png'},
+    handbag: {label: 'Pink lock', image: 'icons/pink-lock-closed.png'},
+    unlocked: {label: 'Open pink lock', image: 'icons/pink-lock-open.png'},
+    lips: {label:'Red lips', image:'icons/lips.png', card:true},
+    bow: {label:'Pink bow', image:'icons/bow.png', card:true},
+    heel: {label:'Leopard heel', image:'icons/heel.png', card:true},
+    mirror: {label:'Hand mirror', image:'icons/mirror.png', card:true},
+    earrings: {label:'Gold earrings', image:'icons/earrings.png', card:true},
+    microphone: {label:'Microphone', image:'icons/microphone.png', card:true},
+    compact: {label:'Rose compact', image:'icons/compact.png', card:true},
+    wine: {label:'Pink drink', image:'icons/wine.png', card:true},
+    nails: {label:'Pink nails', image:'icons/nails.png', card:true},
+    eyelashes: {label:'Eyelashes', image:'icons/eyelashes.png', card:true}
+  };
+  const bags5 = [[0,1],[0,4],[3,0],[3,5],[6,0],[6,5],[9,1],[9,4]];
+  const levels = [
+    {id:1, name:'Bam Lounge', moves:24, targets:{cherries:22,diamond:16,star:18}, bags:[], tip:'Swap neighbours to match 3. Match 4 for a line blast.'},
+    {id:2, name:'Disco Diner', moves:25, targets:{heart:30,cherries:28,bam:22}, bags:[], tip:'Match 4 in a row, then match the striped icon to clear a line.'},
+    {id:3, name:'Starlight Stage', moves:22, targets:{heart:28,bam:22,disco:3}, bags:[], tip:'A square or a line of 5 makes a Disco. Swap a Disco with a neighbour.'},
+    {id:4, name:'Frozen Lounge', moves:22, targets:{diamond:32,star:28,heart:26}, bags:[], tip:'T and L matches make area blasts. Combine two specials for a bigger clear.'},
+    {id:5, name:'Couture Vault', moves:26, targets:{handbag:8,heart:24,diamond:22}, bags:bags5, tip:'Match beside each pink lock twice. Cleared locks open room for falling icons.'},
+    {id:6, name:'Lipstick & Leopard', moves:26, targets:{lips:30,bow:26,heel:24}, palette:['lips','bow','heel','mirror','earrings'], bags:[], tip:'Collect red lips, pink bows and leopard heels. Match 4 to make a line blast.'},
+    {id:7, name:'Spotlight Disco', moves:28, targets:{microphone:28,compact:26,disco:3}, palette:['microphone','compact','wine','bow','eyelashes'], bags:[], tip:'Collect microphones and rose compacts. Make and activate 3 Disco balls.'},
+    {id:8, name:'Glamour Vault', moves:30, targets:{handbag:10,nails:28,earrings:26}, palette:['nails','earrings','eyelashes','heel','mirror'], bags:[[1,0],[1,5],[3,1],[3,4],[5,0],[5,5],[7,1],[7,4],[9,2],[9,3]], tip:'Clear ten pink locks and collect pink nails and gold earrings. Match beside each lock twice.'},
+    {id:9, name:'Bam Grand Finale', moves:32, targets:{lips:34,microphone:30,disco:4}, palette:['lips','microphone','compact','wine','bow'], bags:[], tip:'Collect lips and microphones, then activate 4 Discos. Combine specials for bigger clears.'}
+  ].map(level => Object.freeze({area:0, difficulty:'Normal', background:'artwork/lounge-levels.jpg', palette:['heart','star','diamond','cherries','bam'], ...level}));
+
+  const SHAPES = {
+    arch:['..####..','.######.','########','########','########','########','.######.','..####..'],
+    steps:['####....','#####...','######..','#######.','.#######','..######','...#####','....####'],
+    hourglass:['########','########','.######.','..####..','..####..','.######.','########','########'],
+    window:['########','########','###..###','###..###','###..###','###..###','########','########'],
+    wings:['###..###','###..###','########','########','########','########','###..###','###..###'],
+    bridge:['###..###','###..###','###..###','########','########','###..###','###..###','###..###'],
+    diamond:['...##...','..####..','.######.','########','########','.######.','..####..','...##...'],
+    stage:['.######.','.######.','########','########','########','########','########','..####..'],
+    split:['###.###','###.###','###.###','###.###','###.###','###.###','###.###','###.###','###.###']
+  };
+  // Early levels now use the same square-cell shaped boards as the campaign.
+  const earlyShapes=['arch','stage','hourglass','wings','window','stage','arch','wings','hourglass'];
+  for(let i=0;i<9;i++){
+    const old=levels[i],shape=earlyShapes[i],mask=SHAPES[shape];
+    const bags=old.bags.length?obstacleCells(mask,old.bags.length,old.id):[];
+    levels[i]=Object.freeze({...old,shape,mask,bags});
+  }
+  const PALETTES = [
+    ['lips','bow','heel','mirror','earrings'],
+    ['microphone','compact','wine','bow','eyelashes'],
+    ['nails','earrings','eyelashes','heel','mirror'],
+    ['heart','star','diamond','cherries','bam']
+  ];
+  // Each entry is an authored layout/goal pairing. No random endless-level filler.
+  const designs = [
+    ['Kiss & Tell','arch',0,'ice',10,27],
+    ['Neon Steps','steps',0,'crate',8,28],
+    ['Pink Ice Party','hourglass',0,'ice',16,30],
+    ['Window Shopping','window',2,'handbag',8,31],
+    ['Double Trouble','split',0,'crate',12,31],
+    ['Velvet Wings','wings',0,'ice',20,30],
+    ['Mirror Mirror','stage',2,'crate',16,33],
+    ['Heart of Glass','diamond',3,'ice',12,29],
+    ['Gift Wrap','arch',0,'crate',18,32],
+    ['Lounge After Dark','bridge',0,'handbag',10,34],
+    ['Lipstick Lounge Finale','hourglass',0,'mixed',18,37],
+    ['Sound Check','stage',1,'ice',14,29],
+    ['Step to the Beat','steps',1,'crate',14,31],
+    ['Disco Windows','window',1,'ice',22,33],
+    ['Across the Floor','bridge',1,'handbag',10,34],
+    ['The Double Act','split',1,'crate',16,34],
+    ['Spotlight Sparkle','diamond',1,'ice',18,33],
+    ['Backstage Gifts','wings',1,'crate',20,35],
+    ['Encore Encore','hourglass',1,'handbag',12,35],
+    ['Midnight Music','arch',1,'mixed',20,37],
+    ['Disco Diner Finale','stage',1,'mixed',24,40],
+    ['The Dressing Room','arch',2,'ice',18,31],
+    ['Couture Stairs','steps',2,'crate',16,33],
+    ['Behind the Mirror','window',2,'handbag',12,36],
+    ['Two Sides of Glam','split',2,'ice',24,35],
+    ['Diamond Dressing','diamond',2,'crate',12,34],
+    ['Velvet Vault','wings',2,'mixed',20,37],
+    ['Golden Hour','hourglass',2,'ice',24,36],
+    ['Catwalk Crossing','bridge',2,'crate',18,37],
+    ['Bam Before the Storm','arch',2,'mixed',24,39],
+    ['The Grand Wam Bam','stage',2,'mixed',28,42]
+  ];
+  function obstacleCells(mask, count, offset) {
+    const cols=mask[0].length, options=[];
+    mask.forEach((row,r)=>[...row].forEach((cell,c)=>{
+      // Keep the central lanes open. Blockers always have an approach cell.
+      if(cell==='#' && c!==Math.floor(cols/2) && c!==Math.floor(cols/2)-1)options.push([r,c]);
+    }));
+    const ranked=options.map(([r,c])=>({cell:[r,c],rank:((r*43+c*29+offset*17)%101)})).sort((a,b)=>a.rank-b.rank);
+    return ranked.slice(0,count).map(x=>x.cell);
+  }
+  designs.push(
+    ["Velvet Revue","stage",0,"ice",10,32],
+    ["Perfume Parade","arch",0,"crate",12,32],
+    ["Golden Spotlight","steps",0,"handbag",14,33],
+    ["Ruby Rhythm","wings",0,"ice",16,33],
+    ["Starlet Steps","window",0,"mixed",18,34],
+    ["Neon Hearts","hourglass",0,"crate",10,34],
+    ["Backstage Beauty","diamond",0,"ice",12,35],
+    ["Satin Secrets","bridge",0,"handbag",14,35],
+    ["Midnight Glam","split",0,"mixed",16,36],
+    ["Velvet Revue Finale","stage",0,"mixed",24,44],
+    ["Vinyl Dreams","arch",1,"ice",10,32],
+    ["Jukebox Jive","steps",1,"crate",12,32],
+    ["Record Rendezvous","wings",1,"handbag",14,33],
+    ["Twist and Shout","window",1,"ice",16,33],
+    ["Boogie Bridge","hourglass",1,"mixed",18,34],
+    ["Cherry Bop","diamond",1,"crate",10,34],
+    ["Rockabilly Night","bridge",1,"ice",12,35],
+    ["Golden Groove","split",1,"handbag",14,35],
+    ["Encore Avenue","stage",1,"mixed",16,36],
+    ["Jukebox Palace Finale","stage",1,"mixed",24,44],
+    ["Pink Promenade","steps",2,"ice",12,33],
+    ["Bow Boutique","wings",2,"crate",14,33],
+    ["Mirror Maze","window",2,"handbag",16,34],
+    ["Silk Staircase","hourglass",2,"ice",18,34],
+    ["Pearl Party","diamond",2,"mixed",20,35],
+    ["Glamour Gifts","bridge",2,
+
+--- LEVELS\s*= ---
+/crate.svg'},
+    flyer: {label:'Flying kiss', image:'icons/lips.png', card:true},
+    heart: {label: 'Purple heart', image: 'tile_heart_new.png'},
+    star: {label: 'Gold star', image: 'tile_star_new.png'},
+    diamond: {label: 'Diamond', image: 'tile_diamond_new.png'},
+    cherries: {label: 'Cherries', image: 'tile_cherries_new.png'},
+    bam: {label: 'BAM burst', image: 'tile_bam_new.png'},
+    disco: {label: 'Disco ball', image: 'tile_disco_new.png'},
+    handbag: {label: 'Pink lock', image: 'icons/pink-lock-closed.png'},
+    unlocked: {label: 'Open pink lock', image: 'icons/pink-lock-open.png'},
+    lips: {label:'Red lips', image:'icons/lips.png', card:true},
+    bow: {label:'Pink bow', image:'icons/bow.png', card:true},
+    heel: {label:'Leopard heel', image:'icons/heel.png', card:true},
+    mirror: {label:'Hand mirror', image:'icons/mirror.png', card:true},
+    earrings: {label:'Gold earrings', image:'icons/earrings.png', card:true},
+    microphone: {label:'Microphone', image:'icons/microphone.png', card:true},
+    compact: {label:'Rose compact', image:'icons/compact.png', card:true},
+    wine: {label:'Pink drink', image:'icons/wine.png', card:true},
+    nails: {label:'Pink nails', image:'icons/nails.png', card:true},
+    eyelashes: {label:'Eyelashes', image:'icons/eyelashes.png', card:true}
+  };
+  const bags5 = [[0,1],[0,4],[3,0],[3,5],[6,0],[6,5],[9,1],[9,4]];
+  const levels = [
+    {id:1, name:'Bam Lounge', moves:24, targets:{cherries:22,diamond:16,star:18}, bags:[], tip:'Swap neighbours to match 3. Match 4 for a line blast.'},
+    {id:2, name:'Disco Diner', moves:25, targets:{heart:30,cherries:28,bam:22}, bags:[], tip:'Match 4 in a row, then match the striped icon to clear a line.'},
+    {id:3, name:'Starlight Stage', moves:22, targets:{heart:28,bam:22,disco:3}, bags:[], tip:'A square or a line of 5 makes a Disco. Swap a Disco with a neighbour.'},
+    {id:4, name:'Frozen Lounge', moves:22, targets:{diamond:32,star:28,heart:26}, bags:[], tip:'T and L matches make area blasts. Combine two specials for a bigger clear.'},
+    {id:5, name:'Couture Vault', moves:26, targets:{handbag:8,heart:24,diamond:22}, bags:bags5, tip:'Match beside each pink lock twice. Cleared locks open room for falling icons.'},
+    {id:6, name:'Lipstick & Leopard', moves:26, targets:{lips:30,bow:26,heel:24}, palette:['lips','bow','heel','mirror','earrings'], bags:[], tip:'Collect red lips, pink bows and leopard heels. Match 4 to make a line blast.'},
+    {id:7, name:'Spotlight Disco', moves:28, targets:{microphone:28,compact:26,disco:3}, palette:['microphone','compact','wine','bow','eyelashes'], bags:[], tip:'Collect microphones and rose compacts. Make and activate 3 Disco balls.'},
+    {id:8, name:'Glamour Vault', moves:30, targets:{handbag:10,nails:28,earrings:26}, palette:['nails','earrings','eyelashes','heel','mirror'], bags:[[1,0],[1,5],[3,1],[3,4],[5,0],[5,5],[7,1],[7,4],[9,2],[9,3]], tip:'Clear ten pink locks and collect pink nails and gold earrings. Match beside each lock twice.'},
+    {id:9, name:'Bam Grand Finale', moves:32, targets:{lips:34,microphone:30,disco:4}, palette:['lips','microphone','compact','wine','bow'], bags:[], tip:'Collect lips and microphones, then activate 4 Discos. Combine specials for bigger clears.'}
+  ].map(level => Object.freeze({area:0, difficulty:'Normal', background:'artwork/lounge-levels.jpg', palette:['heart','star','diamond','cherries','bam'], ...level}));
+
+  const SHAPES = {
+    arch:['..####..','.######.','########','########','########','########','.######.','..####..'],
+    steps:['####....','#####...','######..','#######.','.#######','..######','...#####','....####'],
+    hourglass:['########','########','.######.','..####..','..####..','.######.','########','########'],
+    window:['########','########','###..###','###..###','###..###','###..###','########','########'],
+    wings:['###..###','###..###','########','########','########','########','###..###','###..###'],
+    bridge:['###..###','###..###','###..###','########','########','###..###','###..###','###..###'],
+    diamond:['...##...','..####..','.######.','########','########','.######.','..####..','...##...'],
+    stage:['.######.','.######.','########','########','########','########','########','..####..'],
+    split:['###.###','###.###','###.###','###.###','###.###','###.###','###.###','###.###','###.###']
+  };
+  // Early levels now use the same square-cell shaped boards as the campaign.
+  const earlyShapes=['arch','stage','hourglass','wings','window','stage','arch','wings','hourglass'];
+  for(let i=0;i<9;i++){
+    const old=levels[i],shape=earlyShapes[i],mask=SHAPES[shape];
+    const bags=old.bags.length?obstacleCells(mask,old.bags.length,old.id):[];
+    levels[i]=Object.freeze({...old,shape,mask,bags});
+  }
+  const PALETTES = [
+    ['lips','bow','heel','mirror','earrings'],
+    ['microphone','compact','wine','bow','eyelashes'],
+    ['nails','earrings','eyelashes','heel','mirror'],
+    ['heart','star','diamond','cherries','bam']
+  ];
+  // Each entry is an authored layout/goal pairing. No random endless-level filler.
+  const designs = [
+    ['Kiss & Tell','arch',0,'ice',10,27],
+    ['Neon Steps','steps',0,'crate',8,28],
+    ['Pink Ice Party','hourglass',0,'ice',16,30],
+    ['Window Shopping','window',2,'handbag',8,31],
+    ['Double Trouble','split',0,'crate',12,31],
+    ['Velvet Wings','wings',0,'ice',20,30],
+    ['Mirror Mirror','stage',2,'crate',16,33],
+    ['Heart of Glass','diamond',3,'ice',12,29],
+    ['Gift Wrap','arch',0,'crate',18,32],
+    ['Lounge After Dark','bridge',0,'handbag',10,34],
+    ['Lipstick Lounge Finale','hourglass',0,'mixed',18,37],
+    ['Sound Check','stage',1,'ice',14,29],
+    ['Step to the Beat','steps',1,'crate',14,31],
+    ['Disco Windows','window',1,'ice',22,33],
+    ['Across the Floor','bridge',1,'handbag',10,34],
+    ['The Double Act','split',1,'crate',16,34],
+    ['Spotlight Sparkle','diamond',1,'ice',18,33],
+    ['Backstage Gifts','wings',1,'crate',20,35],
+    ['Encore Encore','hourglass',1,'handbag',12,35],
+    ['Midnight Music','arch',1,'mixed',20,37],
+    ['Disco Diner Finale','stage',1,'mixed',24,40],
+    ['The Dressing Room','arch',2,'ice',18,31],
+    ['Couture Stairs','steps',2,'crate',16,33],
+    ['Behind the Mirror','window',2,'handbag',12,36],
+    ['Two Sides of Glam','split',2,'ice',24,35],
+    ['Diamond Dressing','diamond',2,'crate',12,34],
+    ['Velvet Vault','wings',2,'mixed',20,37],
+    ['Golden Hour','hourglass',2,'ice',24,36],
+    ['Catwalk Crossing','bridge',2,'crate',18,37],
+    ['Bam Before the Storm','arch',2,'mixed',24,39],
+    ['The Grand Wam Bam','stage',2,'mixed',28,42]
+  ];
+  function obstacleCells(mask, count, offset) {
+    const cols=mask[0].length, options=[];
+    mask.forEach((row,r)=>[...row].forEach((cell,c)=>{
+      // Keep the central lanes open. Blockers always have an approach cell.
+      if(cell==='#' && c!==Math.floor(cols/2) && c!==Math.floor(cols/2)-1)options.push([r,c]);
+    }));
+    const ranked=options.map(([r,c])=>({cell:[r,c],rank:((r*43+c*29+offset*17)%101)})).sort((a,b)=>a.rank-b.rank);
+    return ranked.slice(0,count).map(x=>x.cell);
+  }
+  designs.push(
+    ["Velvet Revue","stage",0,"ice",10,32],
+    ["Perfume Parade","arch",0,"crate",12,32],
+    ["Golden Spotlight","steps",0,"handbag",14,33],
+    ["Ruby Rhythm","wings",0,"ice",16,33],
+    ["Starlet Steps","window",0,"mixed",18,34],
+    ["Neon Hearts","hourglass",0,"crate",10,34],
+    ["Backstage Beauty","diamond",0,"ice",12,35],
+    ["Satin Secrets","bridge",0,"handbag",14,35],
+    ["Midnight Glam","split",0,"mixed",16,36],
+    ["Velvet Revue Finale","stage",0,"mixed",24,44],
+    ["Vinyl Dreams","arch",1,"ice",10,32],
+    ["Jukebox Jive","steps",1,"crate",12,32],
+    ["Record Rendezvous","wings",1,"handbag",14,33],
+    ["Twist and Shout","window",1,"ice",16,33],
+    ["Boogie Bridge","hourglass",1,"mixed",18,34],
+    ["Cherry Bop","diamond",1,"crate",10,34],
+    ["Rockabilly Night","bridge",1,"ice",12,35],
+    ["Golden Groove","split",1,"handbag",14,35],
+    ["Encore Avenue","stage",1,"mixed",16,36],
+    ["Jukebox Palace Finale","stage",1,"mixed",24,44],
+    ["Pink Promenade","steps",2,"ice",12,33],
+    ["Bow Boutique","wings",2,"crate",14,33],
+    ["Mirror Maze","window",2,"handbag",16,34],
+    ["Silk Staircase","hourglass",2,"ice",18,34],
+    ["Pearl Party","diamond",2,"mixed",20,35],
+    ["Glamour Gifts","bridge",2,"crate
+
+--- id\s*:\s*1\b ---
+  flyer: {label:'Flying kiss', image:'icons/lips.png', card:true},
+    heart: {label: 'Purple heart', image: 'tile_heart_new.png'},
+    star: {label: 'Gold star', image: 'tile_star_new.png'},
+    diamond: {label: 'Diamond', image: 'tile_diamond_new.png'},
+    cherries: {label: 'Cherries', image: 'tile_cherries_new.png'},
+    bam: {label: 'BAM burst', image: 'tile_bam_new.png'},
+    disco: {label: 'Disco ball', image: 'tile_disco_new.png'},
+    handbag: {label: 'Pink lock', image: 'icons/pink-lock-closed.png'},
+    unlocked: {label: 'Open pink lock', image: 'icons/pink-lock-open.png'},
+    lips: {label:'Red lips', image:'icons/lips.png', card:true},
+    bow: {label:'Pink bow', image:'icons/bow.png', card:true},
+    heel: {label:'Leopard heel', image:'icons/heel.png', card:true},
+    mirror: {label:'Hand mirror', image:'icons/mirror.png', card:true},
+    earrings: {label:'Gold earrings', image:'icons/earrings.png', card:true},
+    microphone: {label:'Microphone', image:'icons/microphone.png', card:true},
+    compact: {label:'Rose compact', image:'icons/compact.png', card:true},
+    wine: {label:'Pink drink', image:'icons/wine.png', card:true},
+    nails: {label:'Pink nails', image:'icons/nails.png', card:true},
+    eyelashes: {label:'Eyelashes', image:'icons/eyelashes.png', card:true}
+  };
+  const bags5 = [[0,1],[0,4],[3,0],[3,5],[6,0],[6,5],[9,1],[9,4]];
+  const levels = [
+    {id:1, name:'Bam Lounge', moves:24, targets:{cherries:22,diamond:16,star:18}, bags:[], tip:'Swap neighbours to match 3. Match 4 for a line blast.'},
+    {id:2, name:'Disco Diner', moves:25, targets:{heart:30,cherries:28,bam:22}, bags:[], tip:'Match 4 in a row, then match the striped icon to clear a line.'},
+    {id:3, name:'Starlight Stage', moves:22, targets:{heart:28,bam:22,disco:3}, bags:[], tip:'A square or a line of 5 makes a Disco. Swap a Disco with a neighbour.'},
+    {id:4, name:'Frozen Lounge', moves:22, targets:{diamond:32,star:28,heart:26}, bags:[], tip:'T and L matches make area blasts. Combine two specials for a bigger clear.'},
+    {id:5, name:'Couture Vault', moves:26, targets:{handbag:8,heart:24,diamond:22}, bags:bags5, tip:'Match beside each pink lock twice. Cleared locks open room for falling icons.'},
+    {id:6, name:'Lipstick & Leopard', moves:26, targets:{lips:30,bow:26,heel:24}, palette:['lips','bow','heel','mirror','earrings'], bags:[], tip:'Collect red lips, pink bows and leopard heels. Match 4 to make a line blast.'},
+    {id:7, name:'Spotlight Disco', moves:28, targets:{microphone:28,compact:26,disco:3}, palette:['microphone','compact','wine','bow','eyelashes'], bags:[], tip:'Collect microphones and rose compacts. Make and activate 3 Disco balls.'},
+    {id:8, name:'Glamour Vault', moves:30, targets:{handbag:10,nails:28,earrings:26}, palette:['nails','earrings','eyelashes','heel','mirror'], bags:[[1,0],[1,5],[3,1],[3,4],[5,0],[5,5],[7,1],[7,4],[9,2],[9,3]], tip:'Clear ten pink locks and collect pink nails and gold earrings. Match beside each lock twice.'},
+    {id:9, name:'Bam Grand Finale', moves:32, targets:{lips:34,microphone:30,disco:4}, palette:['lips','microphone','compact','wine','bow'], bags:[], tip:'Collect lips and microphones, then activate 4 Discos. Combine specials for bigger clears.'}
+  ].map(level => Object.freeze({area:0, difficulty:'Normal', background:'artwork/lounge-levels.jpg', palette:['heart','star','diamond','cherries','bam'], ...level}));
+
+  const SHAPES = {
+    arch:['..####..','.######.','########','########','########','########','.######.','..####..'],
+    steps:['####....','#####...','######..','#######.','.#######','..######','...#####','....####'],
+    hourglass:['########','########','.######.','..####..','..####..','.######.','########','########'],
+    window:['########','########','###..###','###..###','###..###','###..###','########','########'],
+    wings:['###..###','###..###','########','########','########','########','###..###','###..###'],
+    bridge:['###..###','###..###','###..###','########','########','###..###','###..###','###..###'],
+    diamond:['...##...','..####..','.######.','########','########','.######.','..####..','...##...'],
+    stage:['.######.','.######.','########','########','########','########','########','..####..'],
+    split:['###.###','###.###','###.###','###.###','###.###','###.###','###.###','###.###','###.###']
+  };
+  // Early levels now use the same square-cell shaped boards as the campaign.
+  const earlyShapes=['arch','stage','hourglass','wings','window','stage','arch','wings','hourglass'];
+  for(let i=0;i<9;i++){
+    const old=levels[i],shape=earlyShapes[i],mask=SHAPES[shape];
+    const bags=old.bags.length?obstacleCells(mask,old.bags.length,old.id):[];
+    levels[i]=Object.freeze({...old,shape,mask,bags});
+  }
+  const PALETTES = [
+    ['lips','bow','heel','mirror','earrings'],
+    ['microphone','compact','wine','bow','eyelashes'],
+    ['nails','earrings','eyelashes','heel','mirror'],
+    ['heart','star','diamond','cherries','bam']
+  ];
+  // Each entry is an authored layout/goal pairing. No random endless-level filler.
+  const designs = [
+    ['Kiss & Tell','arch',0,'ice',10,27],
+    ['Neon Steps','steps',0,'crate',8,28],
+    ['Pink Ice Party','hourglass',0,'ice',16,30],
+    ['Window Shopping','window',2,'handbag',8,31],
+    ['Double Trouble','split',0,'crate',12,31],
+    ['Velvet Wings','wings',0,'ice',20,30],
+    ['Mirror Mirror','stage',2,'crate',16,33],
+    ['Heart of Glass','diamond',3,'ice',12,29],
+    ['Gift Wrap','arch',0,'crate',18,32],
+    ['Lounge After Dark','bridge',0,'handbag',10,34],
+    ['Lipstick Lounge Finale','hourglass',0,'mixed',18,37],
+    ['Sound Check','stage',1,'ice',14,29],
+    ['Step to the Beat','steps',1,'crate',14,31],
+    ['Disco Windows','window',1,'ice',22,33],
+    ['Across the Floor','bridge',1,'handbag',10,34],
+    ['The Double Act','split',1,'crate',16,34],
+    ['Spotlight Sparkle','diamond',1,'ice',18,33],
+    ['Backstage Gifts','wings',1,'crate',20,35],
+    ['Encore Encore','hourglass',1,'handbag',12,35],
+    ['Midnight Music','arch',1,'mixed',20,37],
+    ['Disco Diner Finale','stage',1,'mixed',24,40],
+    ['The Dressing Room','arch',2,'ice',18,31],
+    ['Couture Stairs','steps',2,'crate',16,33],
+    ['Behind the Mirror','window',2,'handbag',12,36],
+    ['Two Sides of Glam','split',2,'ice',24,35],
+    ['Diamond Dressing','diamond',2,'crate',12,34],
+    ['Velvet Vault','wings',2,'mixed',20,37],
+    ['Golden Hour','hourglass',2,'ice',24,36],
+    ['Catwalk Crossing','bridge',2,'crate',18,37],
+    ['Bam Before the Storm','arch',2,'mixed',24,39],
+    ['The Grand Wam Bam','stage',2,'mixed',28,42]
+  ];
+  function obstacleCells(mask, count, offset) {
+    const cols=mask[0].length, options=[];
+    mask.forEach((row,r)=>[...row].forEach((cell,c)=>{
+      // Keep the central lanes open. Blockers always have an approach cell.
+      if(cell==='#' && c!==Math.floor(cols/2) && c!==Math.floor(cols/2)-1)options.push([r,c]);
+    }));
+    const ranked=options.map(([r,c])=>({cell:[r,c],rank:((r*43+c*29+offset*17)%101)})).sort((a,b)=>a.rank-b.rank);
+    return ranked.slice(0,count).map(x=>x.cell);
+  }
+  designs.push(
+    ["Velvet Revue","stage",0,"ice",10,32],
+    ["Perfume Parade","arch",0,"crate",12,32],
+    ["Golden Spotlight","steps",0,"handbag",14,33],
+    ["Ruby Rhythm","wings",0,"ice",16,33],
+    ["Starlet Steps","window",0,"mixed",18,34],
+    ["Neon Hearts","hourglass",0,"crate",10,34],
+    ["Backstage Beauty","diamond",0,"ice",12,35],
+    ["Satin Secrets","bridge",0,"handbag",14,35],
+    ["Midnight Glam","split",0,"mixed",16,36],
+    ["Velvet Revue Finale","stage",0,"mixed",24,44],
+    ["Vinyl Dreams","arch",1,"ice",10,32],
+    ["Jukebox Jive","steps",1,"crate",12,32],
+    ["Record Rendezvous","wings",1,"handbag",14,33],
+    ["Twist and Shout","window",1,"ice",16,33],
+    ["Boogie Bridge","hourglass",1,"mixed",18,34],
+    ["Cherry Bop","diamond",1,"crate",10,34],
+    ["Rockabilly Night","bridge",1,"ice",12,35],
+    ["Golden Groove","split",1,"handbag",14,35],
+    ["Encore Avenue","stage",1,"mixed",16,36],
+    ["Jukebox Palace Finale","stage",1,"mixed",24,44],
+    ["Pink Promenade","steps",2,"ice",12,33],
+    ["Bow Boutique","wings",2,"crate",14,33],
+    ["Mirror Maze","window",2,"handbag",16,34],
+    ["Silk Staircase","hourglass",2,"ice",18,34],
+    ["Pearl Party","diamond",2,"mixed",20,35],
+    ["Glamour Gifts","bridge",2,"crate",12,35],
+    ["
+
+--- targets ---
+e:'icons/lips.png', card:true},
+    heart: {label: 'Purple heart', image: 'tile_heart_new.png'},
+    star: {label: 'Gold star', image: 'tile_star_new.png'},
+    diamond: {label: 'Diamond', image: 'tile_diamond_new.png'},
+    cherries: {label: 'Cherries', image: 'tile_cherries_new.png'},
+    bam: {label: 'BAM burst', image: 'tile_bam_new.png'},
+    disco: {label: 'Disco ball', image: 'tile_disco_new.png'},
+    handbag: {label: 'Pink lock', image: 'icons/pink-lock-closed.png'},
+    unlocked: {label: 'Open pink lock', image: 'icons/pink-lock-open.png'},
+    lips: {label:'Red lips', image:'icons/lips.png', card:true},
+    bow: {label:'Pink bow', image:'icons/bow.png', card:true},
+    heel: {label:'Leopard heel', image:'icons/heel.png', card:true},
+    mirror: {label:'Hand mirror', image:'icons/mirror.png', card:true},
+    earrings: {label:'Gold earrings', image:'icons/earrings.png', card:true},
+    microphone: {label:'Microphone', image:'icons/microphone.png', card:true},
+    compact: {label:'Rose compact', image:'icons/compact.png', card:true},
+    wine: {label:'Pink drink', image:'icons/wine.png', card:true},
+    nails: {label:'Pink nails', image:'icons/nails.png', card:true},
+    eyelashes: {label:'Eyelashes', image:'icons/eyelashes.png', card:true}
+  };
+  const bags5 = [[0,1],[0,4],[3,0],[3,5],[6,0],[6,5],[9,1],[9,4]];
+  const levels = [
+    {id:1, name:'Bam Lounge', moves:24, targets:{cherries:22,diamond:16,star:18}, bags:[], tip:'Swap neighbours to match 3. Match 4 for a line blast.'},
+    {id:2, name:'Disco Diner', moves:25, targets:{heart:30,cherries:28,bam:22}, bags:[], tip:'Match 4 in a row, then match the striped icon to clear a line.'},
+    {id:3, name:'Starlight Stage', moves:22, targets:{heart:28,bam:22,disco:3}, bags:[], tip:'A square or a line of 5 makes a Disco. Swap a Disco with a neighbour.'},
+    {id:4, name:'Frozen Lounge', moves:22, targets:{diamond:32,star:28,heart:26}, bags:[], tip:'T and L matches make area blasts. Combine two specials for a bigger clear.'},
+    {id:5, name:'Couture Vault', moves:26, targets:{handbag:8,heart:24,diamond:22}, bags:bags5, tip:'Match beside each pink lock twice. Cleared locks open room for falling icons.'},
+    {id:6, name:'Lipstick & Leopard', moves:26, targets:{lips:30,bow:26,heel:24}, palette:['lips','bow','heel','mirror','earrings'], bags:[], tip:'Collect red lips, pink bows and leopard heels. Match 4 to make a line blast.'},
+    {id:7, name:'Spotlight Disco', moves:28, targets:{microphone:28,compact:26,disco:3}, palette:['microphone','compact','wine','bow','eyelashes'], bags:[], tip:'Collect microphones and rose compacts. Make and activate 3 Disco balls.'},
+    {id:8, name:'Glamour Vault', moves:30, targets:{handbag:10,nails:28,earrings:26}, palette:['nails','earrings','eyelashes','heel','mirror'], bags:[[1,0],[1,5],[3,1],[3,4],[5,0],[5,5],[7,1],[7,4],[9,2],[9,3]], tip:'Clear ten pink locks and collect pink nails and gold earrings. Match beside each lock twice.'},
+    {id:9, name:'Bam Grand Finale', moves:32, targets:{lips:34,microphone:30,disco:4}, palette:['lips','microphone','compact','wine','bow'], bags:[], tip:'Collect lips and microphones, then activate 4 Discos. Combine specials for bigger clears.'}
+  ].map(level => Object.freeze({area:0, difficulty:'Normal', background:'artwork/lounge-levels.jpg', palette:['heart','star','diamond','cherries','bam'], ...level}));
+
+  const SHAPES = {
+    arch:['..####..','.######.','########','########','########','########','.######.','..####..'],
+    steps:['####....','#####...','######..','#######.','.#######','..######','...#####','....####'],
+    hourglass:['########','########','.######.','..####..','..####..','.######.','########','########'],
+    window:['########','########','###..###','###..###','###..###','###..###','########','########'],
+    wings:['###..###','###..###','########','########','########','########','###..###','###..###'],
+    bridge:['###..###','###..###','###..###','########','########','###..###','###..###','###..###'],
+    diamond:['...##...','..####..','.######.','########','########','.######.','..####..','...##...'],
+    stage:['.######.','.######.','########','########','########','########','########','..####..'],
+    split:['###.###','###.###','###.###','###.###','###.###','###.###','###.###','###.###','###.###']
+  };
+  // Early levels now use the same square-cell shaped boards as the campaign.
+  const earlyShapes=['arch','stage','hourglass','wings','window','stage','arch','wings','hourglass'];
+  for(let i=0;i<9;i++){
+    const old=levels[i],shape=earlyShapes[i],mask=SHAPES[shape];
+    const bags=old.bags.length?obstacleCells(mask,old.bags.length,old.id):[];
+    levels[i]=Object.freeze({...old,shape,mask,bags});
+  }
+  const PALETTES = [
+    ['lips','bow','heel','mirror','earrings'],
+    ['microphone','compact','wine','bow','eyelashes'],
+    ['nails','earrings','eyelashes','heel','mirror'],
+    ['heart','star','diamond','cherries','bam']
+  ];
+  // Each entry is an authored layout/goal pairing. No random endless-level filler.
+  const designs = [
+    ['Kiss & Tell','arch',0,'ice',10,27],
+    ['Neon Steps','steps',0,'crate',8,28],
+    ['Pink Ice Party','hourglass',0,'ice',16,30],
+    ['Window Shopping','window',2,'handbag',8,31],
+    ['Double Trouble','split',0,'crate',12,31],
+    ['Velvet Wings','wings',0,'ice',20,30],
+    ['Mirror Mirror','stage',2,'crate',16,33],
+    ['Heart of Glass','diamond',3,'ice',12,29],
+    ['Gift Wrap','arch',0,'crate',18,32],
+    ['Lounge After Dark','bridge',0,'handbag',10,34],
+    ['Lipstick Lounge Finale','hourglass',0,'mixed',18,37],
+    ['Sound Check','stage',1,'ice',14,29],
+    ['Step to the Beat','steps',1,'crate',14,31],
+    ['Disco Windows','window',1,'ice',22,33],
+    ['Across the Floor','bridge',1,'handbag',10,34],
+    ['The Double Act','split',1,'crate',16,34],
+    ['Spotlight Sparkle','diamond',1,'ice',18,33],
+    ['Backstage Gifts','wings',1,'crate',20,35],
+    ['Encore Encore','hourglass',1,'handbag',12,35],
+    ['Midnight Music','arch',1,'mixed',20,37],
+    ['Disco Diner Finale','stage',1,'mixed',24,40],
+    ['The Dressing Room','arch',2,'ice',18,31],
+    ['Couture Stairs','steps',2,'crate',16,33],
+    ['Behind the Mirror','window',2,'handbag',12,36],
+    ['Two Sides of Glam','split',2,'ice',24,35],
+    ['Diamond Dressing','diamond',2,'crate',12,34],
+    ['Velvet Vault','wings',2,'mixed',20,37],
+    ['Golden Hour','hourglass',2,'ice',24,36],
+    ['Catwalk Crossing','bridge',2,'crate',18,37],
+    ['Bam Before the Storm','arch',2,'mixed',24,39],
+    ['The Grand Wam Bam','stage',2,'mixed',28,42]
+  ];
+  function obstacleCells(mask, count, offset) {
+    const cols=mask[0].length, options=[];
+    mask.forEach((row,r)=>[...row].forEach((cell,c)=>{
+      // Keep the central lanes open. Blockers always have an approach cell.
+      if(cell==='#' && c!==Math.floor(cols/2) && c!==Math.floor(cols/2)-1)options.push([r,c]);
+    }));
+    const ranked=options.map(([r,c])=>({cell:[r,c],rank:((r*43+c*29+offset*17)%101)})).sort((a,b)=>a.rank-b.rank);
+    return ranked.slice(0,count).map(x=>x.cell);
+  }
+  designs.push(
+    ["Velvet Revue","stage",0,"ice",10,32],
+    ["Perfume Parade","arch",0,"crate",12,32],
+    ["Golden Spotlight","steps",0,"handbag",14,33],
+    ["Ruby Rhythm","wings",0,"ice",16,33],
+    ["Starlet Steps","window",0,"mixed",18,34],
+    ["Neon Hearts","hourglass",0,"crate",10,34],
+    ["Backstage Beauty","diamond",0,"ice",12,35],
+    ["Satin Secrets","bridge",0,"handbag",14,35],
+    ["Midnight Glam","split",0,"mixed",16,36],
+    ["Velvet Revue Finale","stage",0,"mixed",24,44],
+    ["Vinyl Dreams","arch",1,"ice",10,32],
+    ["Jukebox Jive","steps",1,"crate",12,32],
+    ["Record Rendezvous","wings",1,"handbag",14,33],
+    ["Twist and Shout","window",1,"ice",16,33],
+    ["Boogie Bridge","hourglass",1,"mixed",18,34],
+    ["Cherry Bop","diamond",1,"crate",10,34],
+    ["Rockabilly Night","bridge",1,"ice",12,35],
+    ["Golden Groove","split",1,"handbag",14,35],
+    ["Encore Avenue","stage",1,"mixed",16,36],
+    ["Jukebox Palace Finale","stage",1,"mixed",24,44],
+    ["Pink Promenade","steps",2,"ice",12,33],
+    ["Bow Boutique","wings",2,"crate",14,33],
+    ["Mirror Maze","window",2,"handbag",16,34],
+    ["Silk Staircase","hourglass",2,"ice",18,34],
+    ["Pearl Party","diamond",2,"mixed",20,35],
+    ["Glamour Gifts","bridge",2,"crate",12,35],
+    ["Perfume Pavilion","split",2,"ice",1
+
+--- moves ---
+iss', image:'icons/lips.png', card:true},
+    heart: {label: 'Purple heart', image: 'tile_heart_new.png'},
+    star: {label: 'Gold star', image: 'tile_star_new.png'},
+    diamond: {label: 'Diamond', image: 'tile_diamond_new.png'},
+    cherries: {label: 'Cherries', image: 'tile_cherries_new.png'},
+    bam: {label: 'BAM burst', image: 'tile_bam_new.png'},
+    disco: {label: 'Disco ball', image: 'tile_disco_new.png'},
+    handbag: {label: 'Pink lock', image: 'icons/pink-lock-closed.png'},
+    unlocked: {label: 'Open pink lock', image: 'icons/pink-lock-open.png'},
+    lips: {label:'Red lips', image:'icons/lips.png', card:true},
+    bow: {label:'Pink bow', image:'icons/bow.png', card:true},
+    heel: {label:'Leopard heel', image:'icons/heel.png', card:true},
+    mirror: {label:'Hand mirror', image:'icons/mirror.png', card:true},
+    earrings: {label:'Gold earrings', image:'icons/earrings.png', card:true},
+    microphone: {label:'Microphone', image:'icons/microphone.png', card:true},
+    compact: {label:'Rose compact', image:'icons/compact.png', card:true},
+    wine: {label:'Pink drink', image:'icons/wine.png', card:true},
+    nails: {label:'Pink nails', image:'icons/nails.png', card:true},
+    eyelashes: {label:'Eyelashes', image:'icons/eyelashes.png', card:true}
+  };
+  const bags5 = [[0,1],[0,4],[3,0],[3,5],[6,0],[6,5],[9,1],[9,4]];
+  const levels = [
+    {id:1, name:'Bam Lounge', moves:24, targets:{cherries:22,diamond:16,star:18}, bags:[], tip:'Swap neighbours to match 3. Match 4 for a line blast.'},
+    {id:2, name:'Disco Diner', moves:25, targets:{heart:30,cherries:28,bam:22}, bags:[], tip:'Match 4 in a row, then match the striped icon to clear a line.'},
+    {id:3, name:'Starlight Stage', moves:22, targets:{heart:28,bam:22,disco:3}, bags:[], tip:'A square or a line of 5 makes a Disco. Swap a Disco with a neighbour.'},
+    {id:4, name:'Frozen Lounge', moves:22, targets:{diamond:32,star:28,heart:26}, bags:[], tip:'T and L matches make area blasts. Combine two specials for a bigger clear.'},
+    {id:5, name:'Couture Vault', moves:26, targets:{handbag:8,heart:24,diamond:22}, bags:bags5, tip:'Match beside each pink lock twice. Cleared locks open room for falling icons.'},
+    {id:6, name:'Lipstick & Leopard', moves:26, targets:{lips:30,bow:26,heel:24}, palette:['lips','bow','heel','mirror','earrings'], bags:[], tip:'Collect red lips, pink bows and leopard heels. Match 4 to make a line blast.'},
+    {id:7, name:'Spotlight Disco', moves:28, targets:{microphone:28,compact:26,disco:3}, palette:['microphone','compact','wine','bow','eyelashes'], bags:[], tip:'Collect microphones and rose compacts. Make and activate 3 Disco balls.'},
+    {id:8, name:'Glamour Vault', moves:30, targets:{handbag:10,nails:28,earrings:26}, palette:['nails','earrings','eyelashes','heel','mirror'], bags:[[1,0],[1,5],[3,1],[3,4],[5,0],[5,5],[7,1],[7,4],[9,2],[9,3]], tip:'Clear ten pink locks and collect pink nails and gold earrings. Match beside each lock twice.'},
+    {id:9, name:'Bam Grand Finale', moves:32, targets:{lips:34,microphone:30,disco:4}, palette:['lips','microphone','compact','wine','bow'], bags:[], tip:'Collect lips and microphones, then activate 4 Discos. Combine specials for bigger clears.'}
+  ].map(level => Object.freeze({area:0, difficulty:'Normal', background:'artwork/lounge-levels.jpg', palette:['heart','star','diamond','cherries','bam'], ...level}));
+
+  const SHAPES = {
+    arch:['..####..','.######.','########','########','########','########','.######.','..####..'],
+    steps:['####....','#####...','######..','#######.','.#######','..######','...#####','....####'],
+    hourglass:['########','########','.######.','..####..','..####..','.######.','########','########'],
+    window:['########','########','###..###','###..###','###..###','###..###','########','########'],
+    wings:['###..###','###..###','########','########','########','########','###..###','###..###'],
+    bridge:['###..###','###..###','###..###','########','########','###..###','###..###','###..###'],
+    diamond:['...##...','..####..','.######.','########','########','.######.','..####..','...##...'],
+    stage:['.######.','.######.','########','########','########','########','########','..####..'],
+    split:['###.###','###.###','###.###','###.###','###.###','###.###','###.###','###.###','###.###']
+  };
+  // Early levels now use the same square-cell shaped boards as the campaign.
+  const earlyShapes=['arch','stage','hourglass','wings','window','stage','arch','wings','hourglass'];
+  for(let i=0;i<9;i++){
+    const old=levels[i],shape=earlyShapes[i],mask=SHAPES[shape];
+    const bags=old.bags.length?obstacleCells(mask,old.bags.length,old.id):[];
+    levels[i]=Object.freeze({...old,shape,mask,bags});
+  }
+  const PALETTES = [
+    ['lips','bow','heel','mirror','earrings'],
+    ['microphone','compact','wine','bow','eyelashes'],
+    ['nails','earrings','eyelashes','heel','mirror'],
+    ['heart','star','diamond','cherries','bam']
+  ];
+  // Each entry is an authored layout/goal pairing. No random endless-level filler.
+  const designs = [
+    ['Kiss & Tell','arch',0,'ice',10,27],
+    ['Neon Steps','steps',0,'crate',8,28],
+    ['Pink Ice Party','hourglass',0,'ice',16,30],
+    ['Window Shopping','window',2,'handbag',8,31],
+    ['Double Trouble','split',0,'crate',12,31],
+    ['Velvet Wings','wings',0,'ice',20,30],
+    ['Mirror Mirror','stage',2,'crate',16,33],
+    ['Heart of Glass','diamond',3,'ice',12,29],
+    ['Gift Wrap','arch',0,'crate',18,32],
+    ['Lounge After Dark','bridge',0,'handbag',10,34],
+    ['Lipstick Lounge Finale','hourglass',0,'mixed',18,37],
+    ['Sound Check','stage',1,'ice',14,29],
+    ['Step to the Beat','steps',1,'crate',14,31],
+    ['Disco Windows','window',1,'ice',22,33],
+    ['Across the Floor','bridge',1,'handbag',10,34],
+    ['The Double Act','split',1,'crate',16,34],
+    ['Spotlight Sparkle','diamond',1,'ice',18,33],
+    ['Backstage Gifts','wings',1,'crate',20,35],
+    ['Encore Encore','hourglass',1,'handbag',12,35],
+    ['Midnight Music','arch',1,'mixed',20,37],
+    ['Disco Diner Finale','stage',1,'mixed',24,40],
+    ['The Dressing Room','arch',2,'ice',18,31],
+    ['Couture Stairs','steps',2,'crate',16,33],
+    ['Behind the Mirror','window',2,'handbag',12,36],
+    ['Two Sides of Glam','split',2,'ice',24,35],
+    ['Diamond Dressing','diamond',2,'crate',12,34],
+    ['Velvet Vault','wings',2,'mixed',20,37],
+    ['Golden Hour','hourglass',2,'ice',24,36],
+    ['Catwalk Crossing','bridge',2,'crate',18,37],
+    ['Bam Before the Storm','arch',2,'mixed',24,39],
+    ['The Grand Wam Bam','stage',2,'mixed',28,42]
+  ];
+  function obstacleCells(mask, count, offset) {
+    const cols=mask[0].length, options=[];
+    mask.forEach((row,r)=>[...row].forEach((cell,c)=>{
+      // Keep the central lanes open. Blockers always have an approach cell.
+      if(cell==='#' && c!==Math.floor(cols/2) && c!==Math.floor(cols/2)-1)options.push([r,c]);
+    }));
+    const ranked=options.map(([r,c])=>({cell:[r,c],rank:((r*43+c*29+offset*17)%101)})).sort((a,b)=>a.rank-b.rank);
+    return ranked.slice(0,count).map(x=>x.cell);
+  }
+  designs.push(
+    ["Velvet Revue","stage",0,"ice",10,32],
+    ["Perfume Parade","arch",0,"crate",12,32],
+    ["Golden Spotlight","steps",0,"handbag",14,33],
+    ["Ruby Rhythm","wings",0,"ice",16,33],
+    ["Starlet Steps","window",0,"mixed",18,34],
+    ["Neon Hearts","hourglass",0,"crate",10,34],
+    ["Backstage Beauty","diamond",0,"ice",12,35],
+    ["Satin Secrets","bridge",0,"handbag",14,35],
+    ["Midnight Glam","split",0,"mixed",16,36],
+    ["Velvet Revue Finale","stage",0,"mixed",24,44],
+    ["Vinyl Dreams","arch",1,"ice",10,32],
+    ["Jukebox Jive","steps",1,"crate",12,32],
+    ["Record Rendezvous","wings",1,"handbag",14,33],
+    ["Twist and Shout","window",1,"ice",16,33],
+    ["Boogie Bridge","hourglass",1,"mixed",18,34],
+    ["Cherry Bop","diamond",1,"crate",10,34],
+    ["Rockabilly Night","bridge",1,"ice",12,35],
+    ["Golden Groove","split",1,"handbag",14,35],
+    ["Encore Avenue","stage",1,"mixed",16,36],
+    ["Jukebox Palace Finale","stage",1,"mixed",24,44],
+    ["Pink Promenade","steps",2,"ice",12,33],
+    ["Bow Boutique","wings",2,"crate",14,33],
+    ["Mirror Maze","window",2,"handbag",16,34],
+    ["Silk Staircase","hourglass",2,"ice",18,34],
+    ["Pearl Party","diamond",2,"mixed",20,35],
+    ["Glamour Gifts","bridge",2,"crate",12,35],
+    ["Perfume Pavilion","split"
+
+===== wam-ui.js =====
+
+--- class\s+GameView ---
+ade);
+    return {shade,card,close:()=>shade.remove()};
+  }
+  function createHost(id,background) {
+    style();document.getElementById('wambam-home-effects')?.remove();document.getElementById('wambam-mobile-screen-bg')?.remove();
+    document.getElementById('wambam-curtain-transition')?.remove();
+    const host=el('div','wam-host');host.id=id;
+    host.style.backgroundImage='radial-gradient(ellipse at center,#45203c,#170b20 70%)';
+    host.style.backgroundSize='cover';
+    const stage=el('div','wam-stage');host.append(stage);document.body.append(host);
+    const canvas=document.querySelector('canvas');if(canvas)canvas.style.visibility='hidden';
+    const fit=()=>{const w=host.clientWidth,h=host.clientHeight,scale=Math.min(w/720,h/1280);stage.style.transform=`scale(${scale})`;stage.style.left=`${(w-720*scale)/2}px`;stage.style.top=`${(h-1280*scale)/2}px`;};
+    fit();window.addEventListener('resize',fit);window.visualViewport?.addEventListener('resize',fit);
+    return {host,stage,dispose(){window.removeEventListener('resize',fit);window.visualViewport?.removeEventListener('resize',fit);host.remove();if(canvas)canvas.style.visibility='visible';}};
+  }
+  function audio(name) {
+    const shared=window.__wamAudio;if(!shared)return;
+    if(name)shared.play?.(name,.55,1);else shared.start?.();
+  }
+  function record(type,count) {if(count>0)window.__wamEvents?.record?.(type,count);}
+  class GameView {
+    constructor(scene) {
+      this.scene=scene;this.config=C.level(C.progress(storage).selected);this.game=new E.Game(this.config);this.game.boosters=C.inventory(storage);
+      this.selected=null;this.booster=null;this.busy=false;this.paused=false;this.ended=false;this.disposed=false;
+      this.view=createHost('wambam-alpha02-overlay',this.config.background);this.stage=this.view.stage;
+      this.stage.classList.add('wam-lounge-art');
+      const art=el('img','wam-art');art.src=this.config.background;art.alt='Wam Bam lounge';this.stage.append(art);
+      this.moves=el('div','wam-moves');this.moves.setAttribute('aria-label','Moves remaining');this.stage.append(this.moves);
+      this.targetEls={};Object.keys(this.config.targets).forEach((type,i)=>{const row=el('div','wam-target');row.style.top=(78+i*48)+'px';const count=el('span');row.append(icon(type),count);this.stage.append(row);this.targetEls[type]={row,count};});
+      const title=el('div','wam-board-title');title.append(el('span','',`LEVEL ${this.config.id} · ${this.config.name.toUpperCase()}`));
+      const hint=button('HINT',()=>this.showHint());hint.className='';hint.setAttribute('aria-label','Show a matching move');title.append(hint);this.stage.append(title);
+      this.board=el('div','wam-grid');this.board.setAttribute('role','group');this.board.setAttribute('aria-label',`Match board, ${this.game.cols} columns and ${this.game.rows} rows`);this.stage.append(this.board);
+      this.cellWidth=456/this.game.cols;this.cellHeight=580/this.game.rows;
+      this.board.style.gridTemplateColumns=`repeat(${this.game.cols},1fr)`;this.board.style.gridTemplateRows=`repeat(${this.game.rows},1fr)`;
+      if(this.config.mask) {
+        this.cellWidth=this.cellHeight=Math.min(456/this.game.cols,560/this.game.rows);
+        const width=this.game.cols*this.cellWidth,height=this.game.rows*this.cellHeight;
+        this.board.style.width=width+'px';this.board.style.height=height+'px';this.board.style.left=(360-width/2)+'px';this.board.style.top=(370+(580-height)/2)+'px';this.board.classList.add('shaped');
+        const info=el('div','wam-board-info');info.append(el('span','',this.config.difficulty.toUpperCase()),el('span','',C.AREAS[this.config.area].name));this.stage.append(info);
+        const tip=el('div','wam-shape-tip',this.config.squareSpecial==='flyer'?'4 in a square = Flying Kiss · 5 in a line = Disco':'4 in a square or 5 in a line = Disco');tip.style.top=Math.min(956,370+(580+height)/2+16)+'px';this.stage.append(tip);
+      }
+      this.cells=Array.from({length:this.game.rows*this.game.cols},(_,i)=>this.createCell(i));
+      this.boosterButtons={};const names={rocket:'Lip Laser',hammer:'Heel Smash',disco:'Disco Ball',swap:'Free Swap'};
+      Object.entries(names).forEach(([name,label],i)=>{
+        const b=el('button','wam-booster');b.type='button';b.style.left=(30+i*148)+'px';b.setAttribute('aria-label',label);b.title=label;
+        const count=el('span');b.append(count);b.addEventListener('click',()=>{if(this.busy||this.paused||this.ended)return;if(this.game.boosters[name]<=0){this.toast('Earn boosters by completing levels. Every 10th level awards all four!',2400);return;}audio();this.selected=null;this.booster=this.booster===name?null:name;this.render();if(this.booster)this.toast(name==='swap'?'Choose two neighbouring icons':'Tap an icon to use '+label);});
+        this.stage.append(b);this.boosterButtons[name]={b,count};
+      });
+      const pause=el('button','wam-pause');pause.type='button';pause.setAttribute('aria-label','Pause game');pause.addEventListener('click',()=>this.pause());this.stage.append(pause);
+      this.backgroundPause=()=>{if(document.hidden||this.backgrounded){this.cancelDrag();window.__wamAudio?.suspend?.();if(!this.ended&&!this.paused)this.pause(true);}};
+      this.onPause=()=>{this.backgrounded=true;this.backgroundPause();};this.onResume=()=>{this.backgrounded=false;};
+      document.addEventListener('visibilitychange',this.backgroundPause);document.addEventListener('pause',this.onPause);document.addEventListener('resume',this.onResume);
+      this.onBack=()=>this.pause();document.addEventListener('backbutton',this.onBack);
+      this.render();this.beforeGame();
+    }
+    beforeGame(){
+      this.paused=true;this.clearHint();
+      const modal=dialog(this.stage,`LEVEL ${this.config.id}`, 'Know your power pieces');
+      modal.card.classList.add('wam-power-guide');
+      const row=(type,title,copy)=>{const card=el('section');Object.assign(card.style,{display:'flex',alignItems:'center',gap:'18px',textAlign:'left',margin:'16px 0',padding:'12px',background:'#170b2488',borderRadius:'18px'});const img=icon(type);Object.assign(img.style,{width:'85px',height:'85px',objectFit:'contain',flexShrink:'0'});const text=el('div');text.append(el('strong','',title));const p=el('p','',copy);Object.assign(p.style,{fontSize:'20px',margin:'6px 0',lineHeight:'1.3'});text.append(p);card.append(img,text);modal.card.append(card);};
+      row('row','LIPSTICK ROCKET','Match 4 in a line to make one. Tap it to clear the whole row or column it points along — both ways!');
+      row('wrapped','GLAM BOMB','Match a T or L shape to make one. Tap it to blast a 13-space diamond, including its own space. Edges and gaps mean fewer spaces.');
+      if(this.game.bags.size)row('handbag','PINK LOCKS','Match beside a closed lock to open it. Match beside it again to clear it. Specials can hit locks too.');
+      modal.card.append(el('p','', 'You can also swap special pieces together for a bigger combo.'));
+      modal.card.append(button('LET’S PLAY',()=>{modal.close();this.paused=false;this.render();this.startHintTimer();this.toast(this.config.name.toUpperCase(),1600);},'cyan'),button('BACK TO MAP',()=>this.navigate('Level Map'),'secondary'));
+    }
+    wait(ms) {return new Promise(resolve=>setTimeout(resolve,matchMedia('(prefers-reduced-motion: reduce)').matches?Math.min(ms,35):ms));}
+    async active() {while(this.paused&&!this.disposed)await this.wait(90);return !this.disposed;}
+    animate(node,frames,options) {
+      if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+      return node.animate?.(frames,options);
+    }
+    createCell(i) {
+      const b=el('button','wam-cell');b.type='button';b.dataset.cell=String(i);
+      const img=el('img');img.draggable=false;const mark=el('span','wam-special-mark'),iceLayer=el('span','wam-ice-layer');iceLayer.hidden=true;b.append(img,mark,iceLayer);
+      b.addEventListener('pointerdown',e=>{
+        if(!this.game.valid(i)||e.button!==0||this.busy||this.paused||this.ended||this.drag)return;
+        e.preventDefault();audio();this.clearHint();
+        this.drag={i,id:e.pointerId,x:e.clientX,y:e.clientY,node:b};try{b.setPointerCapture(e.pointerId);}catch(_){}
+      });
+      b.addEventListener('pointermove',e=>{
+        const d=this.drag;if(!d||d.id!==e.pointerId||d.i!==i)return;e.preventDefault();
+        if(this.game.blocked(i))return;
+        const scale=this.vi
+
+--- constructor\s*\( ---
+de,card,close:()=>shade.remove()};
+  }
+  function createHost(id,background) {
+    style();document.getElementById('wambam-home-effects')?.remove();document.getElementById('wambam-mobile-screen-bg')?.remove();
+    document.getElementById('wambam-curtain-transition')?.remove();
+    const host=el('div','wam-host');host.id=id;
+    host.style.backgroundImage='radial-gradient(ellipse at center,#45203c,#170b20 70%)';
+    host.style.backgroundSize='cover';
+    const stage=el('div','wam-stage');host.append(stage);document.body.append(host);
+    const canvas=document.querySelector('canvas');if(canvas)canvas.style.visibility='hidden';
+    const fit=()=>{const w=host.clientWidth,h=host.clientHeight,scale=Math.min(w/720,h/1280);stage.style.transform=`scale(${scale})`;stage.style.left=`${(w-720*scale)/2}px`;stage.style.top=`${(h-1280*scale)/2}px`;};
+    fit();window.addEventListener('resize',fit);window.visualViewport?.addEventListener('resize',fit);
+    return {host,stage,dispose(){window.removeEventListener('resize',fit);window.visualViewport?.removeEventListener('resize',fit);host.remove();if(canvas)canvas.style.visibility='visible';}};
+  }
+  function audio(name) {
+    const shared=window.__wamAudio;if(!shared)return;
+    if(name)shared.play?.(name,.55,1);else shared.start?.();
+  }
+  function record(type,count) {if(count>0)window.__wamEvents?.record?.(type,count);}
+  class GameView {
+    constructor(scene) {
+      this.scene=scene;this.config=C.level(C.progress(storage).selected);this.game=new E.Game(this.config);this.game.boosters=C.inventory(storage);
+      this.selected=null;this.booster=null;this.busy=false;this.paused=false;this.ended=false;this.disposed=false;
+      this.view=createHost('wambam-alpha02-overlay',this.config.background);this.stage=this.view.stage;
+      this.stage.classList.add('wam-lounge-art');
+      const art=el('img','wam-art');art.src=this.config.background;art.alt='Wam Bam lounge';this.stage.append(art);
+      this.moves=el('div','wam-moves');this.moves.setAttribute('aria-label','Moves remaining');this.stage.append(this.moves);
+      this.targetEls={};Object.keys(this.config.targets).forEach((type,i)=>{const row=el('div','wam-target');row.style.top=(78+i*48)+'px';const count=el('span');row.append(icon(type),count);this.stage.append(row);this.targetEls[type]={row,count};});
+      const title=el('div','wam-board-title');title.append(el('span','',`LEVEL ${this.config.id} · ${this.config.name.toUpperCase()}`));
+      const hint=button('HINT',()=>this.showHint());hint.className='';hint.setAttribute('aria-label','Show a matching move');title.append(hint);this.stage.append(title);
+      this.board=el('div','wam-grid');this.board.setAttribute('role','group');this.board.setAttribute('aria-label',`Match board, ${this.game.cols} columns and ${this.game.rows} rows`);this.stage.append(this.board);
+      this.cellWidth=456/this.game.cols;this.cellHeight=580/this.game.rows;
+      this.board.style.gridTemplateColumns=`repeat(${this.game.cols},1fr)`;this.board.style.gridTemplateRows=`repeat(${this.game.rows},1fr)`;
+      if(this.config.mask) {
+        this.cellWidth=this.cellHeight=Math.min(456/this.game.cols,560/this.game.rows);
+        const width=this.game.cols*this.cellWidth,height=this.game.rows*this.cellHeight;
+        this.board.style.width=width+'px';this.board.style.height=height+'px';this.board.style.left=(360-width/2)+'px';this.board.style.top=(370+(580-height)/2)+'px';this.board.classList.add('shaped');
+        const info=el('div','wam-board-info');info.append(el('span','',this.config.difficulty.toUpperCase()),el('span','',C.AREAS[this.config.area].name));this.stage.append(info);
+        const tip=el('div','wam-shape-tip',this.config.squareSpecial==='flyer'?'4 in a square = Flying Kiss · 5 in a line = Disco':'4 in a square or 5 in a line = Disco');tip.style.top=Math.min(956,370+(580+height)/2+16)+'px';this.stage.append(tip);
+      }
+      this.cells=Array.from({length:this.game.rows*this.game.cols},(_,i)=>this.createCell(i));
+      this.boosterButtons={};const names={rocket:'Lip Laser',hammer:'Heel Smash',disco:'Disco Ball',swap:'Free Swap'};
+      Object.entries(names).forEach(([name,label],i)=>{
+        const b=el('button','wam-booster');b.type='button';b.style.left=(30+i*148)+'px';b.setAttribute('aria-label',label);b.title=label;
+        const count=el('span');b.append(count);b.addEventListener('click',()=>{if(this.busy||this.paused||this.ended)return;if(this.game.boosters[name]<=0){this.toast('Earn boosters by completing levels. Every 10th level awards all four!',2400);return;}audio();this.selected=null;this.booster=this.booster===name?null:name;this.render();if(this.booster)this.toast(name==='swap'?'Choose two neighbouring icons':'Tap an icon to use '+label);});
+        this.stage.append(b);this.boosterButtons[name]={b,count};
+      });
+      const pause=el('button','wam-pause');pause.type='button';pause.setAttribute('aria-label','Pause game');pause.addEventListener('click',()=>this.pause());this.stage.append(pause);
+      this.backgroundPause=()=>{if(document.hidden||this.backgrounded){this.cancelDrag();window.__wamAudio?.suspend?.();if(!this.ended&&!this.paused)this.pause(true);}};
+      this.onPause=()=>{this.backgrounded=true;this.backgroundPause();};this.onResume=()=>{this.backgrounded=false;};
+      document.addEventListener('visibilitychange',this.backgroundPause);document.addEventListener('pause',this.onPause);document.addEventListener('resume',this.onResume);
+      this.onBack=()=>this.pause();document.addEventListener('backbutton',this.onBack);
+      this.render();this.beforeGame();
+    }
+    beforeGame(){
+      this.paused=true;this.clearHint();
+      const modal=dialog(this.stage,`LEVEL ${this.config.id}`, 'Know your power pieces');
+      modal.card.classList.add('wam-power-guide');
+      const row=(type,title,copy)=>{const card=el('section');Object.assign(card.style,{display:'flex',alignItems:'center',gap:'18px',textAlign:'left',margin:'16px 0',padding:'12px',background:'#170b2488',borderRadius:'18px'});const img=icon(type);Object.assign(img.style,{width:'85px',height:'85px',objectFit:'contain',flexShrink:'0'});const text=el('div');text.append(el('strong','',title));const p=el('p','',copy);Object.assign(p.style,{fontSize:'20px',margin:'6px 0',lineHeight:'1.3'});text.append(p);card.append(img,text);modal.card.append(card);};
+      row('row','LIPSTICK ROCKET','Match 4 in a line to make one. Tap it to clear the whole row or column it points along — both ways!');
+      row('wrapped','GLAM BOMB','Match a T or L shape to make one. Tap it to blast a 13-space diamond, including its own space. Edges and gaps mean fewer spaces.');
+      if(this.game.bags.size)row('handbag','PINK LOCKS','Match beside a closed lock to open it. Match beside it again to clear it. Specials can hit locks too.');
+      modal.card.append(el('p','', 'You can also swap special pieces together for a bigger combo.'));
+      modal.card.append(button('LET’S PLAY',()=>{modal.close();this.paused=false;this.render();this.startHintTimer();this.toast(this.config.name.toUpperCase(),1600);},'cyan'),button('BACK TO MAP',()=>this.navigate('Level Map'),'secondary'));
+    }
+    wait(ms) {return new Promise(resolve=>setTimeout(resolve,matchMedia('(prefers-reduced-motion: reduce)').matches?Math.min(ms,35):ms));}
+    async active() {while(this.paused&&!this.disposed)await this.wait(90);return !this.disposed;}
+    animate(node,frames,options) {
+      if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+      return node.animate?.(frames,options);
+    }
+    createCell(i) {
+      const b=el('button','wam-cell');b.type='button';b.dataset.cell=String(i);
+      const img=el('img');img.draggable=false;const mark=el('span','wam-special-mark'),iceLayer=el('span','wam-ice-layer');iceLayer.hidden=true;b.append(img,mark,iceLayer);
+      b.addEventListener('pointerdown',e=>{
+        if(!this.game.valid(i)||e.button!==0||this.busy||this.paused||this.ended||this.drag)return;
+        e.preventDefault();audio();this.clearHint();
+        this.drag={i,id:e.pointerId,x:e.clientX,y:e.clientY,node:b};try{b.setPointerCapture(e.pointerId);}catch(_){}
+      });
+      b.addEventListener('pointermove',e=>{
+        const d=this.drag;if(!d||d.id!==e.pointerId||d.i!==i)return;e.preventDefault();
+        if(this.game.blocked(i))return;
+        const scale=this.view.stage.getBoundingC
+
+--- wam-board ---
+eft:108px;top:327.68px;width:504px;height:746.88px;display:grid;grid-template-columns:repeat(6,1fr);grid-template-rows:repeat(10,1fr);touch-action:none}
+    .wam-cell{position:relative;min-width:0;width:100%;height:100%;padding:0;border:1px solid #99653726;border-radius:9px;background:#fff6d714;touch-action:none!important}
+    .wam-cell img{position:absolute;width:90%;height:90%;left:5%;top:5%;object-fit:contain;pointer-events:none;border-radius:12px}
+    .wam-cell img.supplied{mix-blend-mode:multiply}
+    .wam-cell[data-hole=true]{visibility:hidden;pointer-events:none}.wam-grid.shaped .wam-cell{background:linear-gradient(#fffaf0,#f8deb1);border:2px solid #bc6c97;border-radius:11px;box-shadow:inset 0 2px #fff,0 2px 3px #602d5844}
+    .wam-ice-layer{position:absolute;inset:3px;z-index:4;border:3px solid #4dd4e9;background:linear-gradient(135deg,#c8ffff70 10%,#fff8 12%,#76cfea25 16%,#c7faff88 75%,#fff9 78%,#78d9ee66 83%);border-radius:10px;pointer-events:none;color:#044d69;text-shadow:0 1px white;font-size:15px;font-weight:900;text-align:right;padding:2px}
+    .wam-ice-layer[hidden]{display:none}.wam-cell[data-special=flyer]{box-shadow:inset 0 0 0 4px #fc68a6}.wam-cell[data-crate-hits="2"]:after{content:'×2';position:absolute;right:4px;bottom:4px;z-index:5;background:#793683;border:2px solid #ffedb2;border-radius:12px;color:#fff;padding:0 5px;font-size:18px;font-weight:900}
+    .wam-board-info{position:absolute;left:114px;top:344px;width:492px;display:flex;justify-content:center;gap:10px;color:#6b2748;font-weight:900;font-size:20px}.wam-board-info span{border:2px solid #b27670;border-radius:20px;padding:7px 13px;background:#fff2d5}
+    .wam-shape-tip{position:absolute;left:126px;top:1002px;width:468px;text-align:center;color:#642947;font-weight:800;font-size:20px;line-height:1.35}
+    .wam-mini-board{display:grid;gap:3px;width:200px;margin:20px auto}.wam-mini-board span{height:18px;border-radius:3px;background:#ffdaaa}.wam-mini-board span.hole{background:transparent}.wam-mini-board span.blocker{background:#db55a5}.wam-mini-board span.frozen{background:#5de1f1}.wam-cell[data-special=disco] img{width:155%;left:-27.5%;object-fit:cover;clip-path:circle(34%)}
+    .wam-cell.selected{z-index:10;background:#fff6b8;box-shadow:inset 0 0 0 4px #ed2786}.wam-cell.hint{animation:wamHint 900ms ease-in-out infinite}
+    .wam-special-mark{position:absolute;right:1px;bottom:1px;z-index:2;display:flex;align-items:center;justify-content:center;min-width:28px;height:27px;border:2px solid white;border-radius:10px;background:#b5086b;color:#fff;font-weight:900;font-size:20px;pointer-events:none}
+    .wam-cell[data-special=row]{box-shadow:inset 0 -4px #ee2d89,inset 0 4px #ee2d89}.wam-cell[data-special=column]{box-shadow:inset -4px 0 #14aab7,inset 4px 0 #14aab7}.wam-cell[data-special=wrapped]{box-shadow:inset 0 0 0 4px #952bda}
+    .wam-moves{position:absolute;left:37px;top:67px;width:102px;height:66px;display:flex;justify-content:center;align-items:center;font-size:54px;font-weight:900;text-shadow:2px 3px #43132e}
+    .wam-target{position:absolute;left:562px;width:127px;height:45px;display:flex;align-items:center;gap:8px;color:#281322;font-size:34px;font-weight:900}.wam-target img{width:48px;height:43px;object-fit:contain;mix-blend-mode:multiply;border-radius:7px}.wam-target.done{color:#146d4d}
+    .wam-board-title{position:absolute;left:108px;top:284px;width:504px;height:36px;display:flex;align-items:center;justify-content:space-between;font-size:18px;font-weight:900;color:#672245}.wam-board-title button{background:#511b40;color:#ffedbf;border:0;border-radius:14px;padding:5px 14px;font-size:17px;font-weight:900}
+    .wam-booster{position:absolute;top:1100px;width:126px;height:148px;background:transparent;border:0;border-radius:50%}.wam-booster.active{box-shadow:0 0 0 4px #64f7f0,inset 0 0 20px #38f4e6}.wam-booster span{position:absolute;right:0;top:0;min-width:33px;min-height:33px;border-radius:50%;border:3px solid #ffe09a;background:#c60064;color:#fff;font-size:23px;font-weight:900}
+    .wam-pause{position:absolute;left:632px;top:1132px;width:77px;height:92px;background:transparent;border:0;border-radius:50%}
+    .wam-toast{position:absolute;left:70px;right:70px;top:224px;z-index:200;text-align:center;padding:14px 18px;border:3px solid #ffcd61;border-radius:24px;background:#9e125d;color:#fff;font-size:24px;font-weight:900;box-shadow:0 6px 20px #30101d55;pointer-events:none}
+    .wam-diner .wam-board-title{color:#fff3d3;background:#281126ed;border:2px solid #daa55c;border-radius:14px;padding:5px 10px;height:42px}
+    .wam-diner .wam-shape-tip{background:#281126ed;color:#fff3d3;border-radius:12px;padding:7px}
+
+    /* Coordinates match the supplied artwork in the existing 720 x 1280 stage. */
+    .wam-lounge-art .wam-art{object-fit:fill}
+    .wam-lounge-art .wam-grid{left:132px;top:370px;width:456px;height:580px}
+    .wam-lounge-art .wam-board-title{left:134px;top:270px;width:452px;font-size:16px}
+    .wam-lounge-art .wam-board-info{left:134px;top:328px;width:452px;font-size:18px}
+    .wam-lounge-art .wam-shape-tip{left:138px;width:444px;font-size:17px}
+    .wam-lounge-art .wam-moves{left:35px;top:63px;width:116px;height:65px}
+    .wam-lounge-art .wam-target{left:556px;width:133px;height:44px}
+    .wam-lounge-art .wam-booster{top:1055px;width:140px;height:167px}
+    .wam-lounge-art .wam-booster span{right:4px;top:2px}
+    .wam-lounge-art .wam-pause{left:622px;top:1110px;width:82px;height:126px}
+    @keyframes wamHint{50%{box-shadow:inset 0 0 0 4px #ff248e;background:#fff59b80}}
+    @media(prefers-reduced-motion:reduce){.wam-cell.hint{animation:none;box-shadow:inset 0 0 0 4px #ed2786}}
+  `;
+  function style() {if(!document.getElementById('wam94-style')){const s=document.createElement('style');s.id='wam94-style';s.textContent=css;document.head.appendChild(s);}}
+  function el(tag,className,text) {const n=document.createElement(tag);if(className)n.className=className;if(text!==undefined)n.textContent=text;return n;}
+  function button(text,action,className='') {const b=el('button','wam-button '+className,text);b.type='button';b.addEventListener('click',action);return b;}
+  function icon(type) {const def=C.PIECES[type],img=el('img',def.card?'supplied':'');img.src=def.image;img.alt=def.label;img.draggable=false;return img;}
+  function targets(config,remaining=config.targets) {
+    const list=el('div','wam-target-list');
+    for(const type of Object.keys(config.targets)) {const card=el('div','wam-target-card');card.append(icon(type),el('span','',remaining[type]===0?'✓':String(remaining[type])),el('small','',C.PIECES[type].label));list.append(card);}
+    return list;
+  }
+  function dialog(stage,title,copy) {
+    const shade=el('div','wam-shade'),card=el('section','wam-dialog');
+    card.setAttribute('role','dialog');card.setAttribute('aria-modal','true');card.setAttribute('aria-label',title);
+    card.append(el('h2','',title));if(copy)card.append(el('p','',copy));shade.append(card);stage.append(shade);
+    return {shade,card,close:()=>shade.remove()};
+  }
+  function createHost(id,background) {
+    style();document.getElementById('wambam-home-effects')?.remove();document.getElementById('wambam-mobile-screen-bg')?.remove();
+    document.getElementById('wambam-curtain-transition')?.remove();
+    const host=el('div','wam-host');host.id=id;
+    host.style.backgroundImage='radial-gradient(ellipse at center,#45203c,#170b20 70%)';
+    host.style.backgroundSize='cover';
+    const stage=el('div','wam-stage');host.append(stage);document.body.append(host);
+    const canvas=document.querySelector('canvas');if(canvas)canvas.style.visibility='hidden';
+    const fit=()=>{const w=host.clientWidth,h=host.clientHeight,scale=Math.min(w/720,h/1280);stage.style.transform=`scale(${scale})`;stage.style.left=`${(w-720*scale)/2}px`;stage.style.top=`${(h-1280*scale)/2}px`;};
+    fit();window.addEventListener('resize',fit);window.visualViewport?.addEventListener('resize',fit);
+    return {host,stage,dispose(){window.removeEventListener('resize',fit);window.visualViewport?.removeEventListener('resize',fit);host.remove();if(canvas)canvas.style.visibility='visible';}};
+  }
+  function audio(name) {
+    const shared=window.__wamAudio;if(!shared)return;
+    if(name)shared.play?.(name,.55,1);else shared.start?.();
+  }
+  function record(type,count) {if(count>0)window.__wamEvents?.record?.(type,count);}
+  class G
+
+===== wam-engine.js =====
+
+--- class\s+Game ---
+(function(root,factory) {
+  const engine = factory();
+  if (typeof module === 'object' && module.exports) module.exports = engine;
+  else root.WamEngine = engine;
+})(typeof window !== 'undefined' ? window : this, function() {
+  'use strict';
+  const ROWS=10, COLS=6;
+  const key=(r,c)=>r*COLS+c;
+  const coords=i=>({r:Math.floor(i/COLS),c:i%COLS});
+  class Game {
+    constructor(config,random=Math.random) {
+      this.config=config; this.random=random; this.serial=0;
+      this.rows=config.mask?.length||ROWS; this.cols=config.mask?.[0]?.length||COLS;
+      if(config.mask && config.mask.some(row=>row.length!==this.cols||/[^.#]/.test(row))) throw new Error('Invalid board shape');
+      this.holes=new Set();
+      config.mask?.forEach((row,r)=>[...row].forEach((cell,c)=>{if(cell==='.')this.holes.add(this.key(r,c));}));
+      this.crates=new Map((config.crates||[]).map(([r,c,hits=1])=>[this.key(r,c),hits]));
+      this.ice=new Map((config.ice||[]).map(([r,c,hits=1])=>[this.key(r,c),hits]));
+      this.moves=config.moves; this.score=0; this.targets={...config.targets};
+      this.boosters={rocket:0,hammer:0,disco:0,swap:0};
+      this.bags=new Map((config.bags||[]).map(([r,c])=>[this.key(r,c),2]));
+      this.board=Array(this.rows*this.cols).fill(null);
+      this.generate();
+    }
+    key(r,c) { return r*this.cols+c; }
+    coords(i) { return {r:Math.floor(i/this.cols),c:i%this.cols}; }
+    blocked(i) { return this.holes.has(i)||this.bags.has(i)||this.crates.has(i); }
+    neighbours(i) { const {r,c}=this.coords(i);return [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].filter(([r,c])=>r>=0&&r<this.rows&&c>=0&&c<this.cols).map(([r,c])=>this.key(r,c)); }
+    piece(type,special=null) { return {id:++this.serial,type,special}; }
+    randomPiece() { return this.piece(this.config.palette[Math.floor(this.random()*this.config.palette.length)]); }
+    valid(i) { return Number.isInteger(i)&&i>=0&&i<this.board.length&&!this.holes.has(i); }
+    adjacent(a,b) { const x=this.coords(a),y=this.coords(b); return Math.abs(x.r-y.r)+Math.abs(x.c-y.c)===1; }
+    type(i) { const p=this.board[i]; return this.blocked(i)||!p||p.special==='disco' ? null : p.type; }
+    swap(a,b) { [this.board[a],this.board[b]]=[this.board[b],this.board[a]]; }
+    scan(preferred=[]) {
+      const runs=[],squares=[];
+      for (let r=0;r<this.rows;r++) for(let c=0;c<this.cols;) {
+        const start=c,type=this.type(this.key(r,c));
+        while(++c<this.cols&&this.type(this.key(r,c))===type) {}
+        if(type&&c-start>=3) runs.push({axis:'row',cells:Array.from({length:c-start},(_,n)=>this.key(r,start+n))});
+      }
+      for (let c=0;c<this.cols;c++) for(let r=0;r<this.rows;) {
+        const start=r,type=this.type(this.key(r,c));
+        while(++r<this.rows&&this.type(this.key(r,c))===type) {}
+        if(type&&r-start>=3) runs.push({axis:'column',cells:Array.from({length:r-start},(_,n)=>this.key(start+n,c))});
+      }
+      for(let r=0;r<this.rows-1;r++) for(let c=0;c<this.cols-1;c++) {
+        const cells=[this.key(r,c),this.key(r,c+1),this.key(r+1,c),this.key(r+1,c+1)],type=this.type(cells[0]);
+        if(type&&cells.every(i=>this.type(i)===type)) squares.push({axis:'square',cells});
+      }
+      const groups=[];
+      for(const run of [...runs,...squares]) {
+        const overlaps=groups.filter(g=>run.cells.some(i=>g.cells.has(i)));
+        const group={cells:new Set(run.cells),runs:[run]};
+        for(const old of overlaps) {
+          old.cells.forEach(i=>group.cells.add(i)); group.runs.push(...old.runs);
+          groups.splice(groups.indexOf(old),1);
+        }
+        groups.push(group);
+      }
+      const cells=[],spawns=[];
+      for(const group of groups) {
+        cells.push(...group.cells);
+        const five=group.runs.find(r=>r.axis!=='square'&&r.cells.length>=5);
+        const cross=group.runs.some(a=>a.axis==='row'&&group.runs.some(b=>b.axis==='column'&&a.cells.some(i=>b.cells.includes(i))));
+        const four=group.runs.find(r=>r.axis!=='square'&&r.cells.length===4);
+        const square=group.runs.some(r=>r.axis==='square');
+        const special=five?'disco':cross?'wrapped':four?four.axis:square?(this.config.squareSpecial||'disco'):null;
+        if(special) {
+          const choices=[...preferred,...group.cells];
+          const at=choices.find(i=>group.cells.has(i)&&!this.board[i].special)??[...group.cells][0];
+          spawns.push({at,type:this.board[at].type,special});
+        }
+      }
+      return {cells:[...new Set(cells)],spawns};
+    }
+    generate() {
+      for(let attempt=0;attempt<200;attempt++) {
+        this.board.fill(null);
+        for(let i=0;i<this.board.length;i++) {
+          if(this.blocked(i)) continue;
+          const {r,c}=this.coords(i),offset=Math.floor(this.random()*this.config.palette.length);
+          for(let n=0;n<this.config.palette.length;n++) {
+            const type=this.config.palette[(offset+n)%this.config.palette.length];
+            if(c>=2&&this.type(i-1)===type&&this.type(i-2)===type) continue;
+            if(r>=2&&this.type(i-this.cols)===type&&this.type(i-this.cols*2)===type) continue;
+            if(r>=1&&c>=1&&this.type(i-1)===type&&this.type(i-this.cols)===type&&this.type(i-this.cols-1)===type) continue;
+            this.board[i]=this.piece(type); break;
+          }
+        }
+        if(this.findMove()) return;
+      }
+      throw new Error('Could not create a playable board');
+    }
+    findMove() {
+      for(let a=0;a<this.board.length;a++) {
+        if(!this.board[a]||this.blocked(a)) continue;
+        for(const b of [a+1,a+this.cols]) {
+          if(!this.valid(b)||!this.adjacent(a,b)||this.blocked(b)||!this.board[b]) continue;
+          const x=this.board[a],y=this.board[b];
+          if(x.special||y.special) return [a,b];
+          if(x.type===y.type) continue;
+          this.swap(a,b); const found=this.scan().cells.length>0; this.swap(a,b);
+          if(found) return [a,b];
+        }
+      }
+      return null;
+    }
+    area(at,radius=1) {
+      const p=this.coords(at),cells=[];
+      for(let r=Math.max(0,p.r-radius);r<=Math.min(this.rows-1,p.r+radius);r++)
+        for(let c=Math.max(0,p.c-radius);c<=Math.min(this.cols-1,p.c+radius);c++) cells.push(this.key(r,c));
+      return cells;
+    }
+    line(at,axis) {
+      const {r,c}=this.coords(at);
+      return axis==='row'?Array.from({length:this.cols},(_,n)=>this.key(r,n)):Array.from({length:this.rows},(_,n)=>this.key(n,c));
+    }
+    bomb(at) {
+      const {r,c}=this.coords(at),cells=[];
+      for(let dr=-2;dr<=2;dr++)for(let dc=-2;dc<=2;dc++) {
+        if(Math.abs(dr)+Math.abs(dc)>2)continue;
+        const nr=r+dr,nc=c+dc;
+        if(nr>=0&&nr<this.rows&&nc>=0&&nc<this.cols&&this.valid(this.key(nr,nc)))cells.push(this.key(nr,nc));
+      }
+      return cells;
+    }
+    targetCell(excluded=[]) {
+      const skip=new Set(excluded);
+      const cells=this.board.map((p,i)=>i).filter(i=>this.valid(i)&&!skip.has(i));
+      const priority=i=>this.ice.has(i)&&this.targets.ice>0?5:this.crates.has(i)&&this.targets.crate>0?4:this.bags.has(i)&&this.targets.handbag>0?3:this.targets[this.board[i]?.type]>0?2:this.board[i]?1:0;
+      cells.sort((a,b)=>priority(b)-priority(a));
+      return cells.find(i=>priority(i)>0);
+    }
+    activate(at) {
+      if(!this.valid(at)||!this.board[at]?.special||this.moves<=0||this.won)return null;
+      this.moves--;return {cells:[at],sp
+
+--- constructor\s*\( ---
+(function(root,factory) {
+  const engine = factory();
+  if (typeof module === 'object' && module.exports) module.exports = engine;
+  else root.WamEngine = engine;
+})(typeof window !== 'undefined' ? window : this, function() {
+  'use strict';
+  const ROWS=10, COLS=6;
+  const key=(r,c)=>r*COLS+c;
+  const coords=i=>({r:Math.floor(i/COLS),c:i%COLS});
+  class Game {
+    constructor(config,random=Math.random) {
+      this.config=config; this.random=random; this.serial=0;
+      this.rows=config.mask?.length||ROWS; this.cols=config.mask?.[0]?.length||COLS;
+      if(config.mask && config.mask.some(row=>row.length!==this.cols||/[^.#]/.test(row))) throw new Error('Invalid board shape');
+      this.holes=new Set();
+      config.mask?.forEach((row,r)=>[...row].forEach((cell,c)=>{if(cell==='.')this.holes.add(this.key(r,c));}));
+      this.crates=new Map((config.crates||[]).map(([r,c,hits=1])=>[this.key(r,c),hits]));
+      this.ice=new Map((config.ice||[]).map(([r,c,hits=1])=>[this.key(r,c),hits]));
+      this.moves=config.moves; this.score=0; this.targets={...config.targets};
+      this.boosters={rocket:0,hammer:0,disco:0,swap:0};
+      this.bags=new Map((config.bags||[]).map(([r,c])=>[this.key(r,c),2]));
+      this.board=Array(this.rows*this.cols).fill(null);
+      this.generate();
+    }
+    key(r,c) { return r*this.cols+c; }
+    coords(i) { return {r:Math.floor(i/this.cols),c:i%this.cols}; }
+    blocked(i) { return this.holes.has(i)||this.bags.has(i)||this.crates.has(i); }
+    neighbours(i) { const {r,c}=this.coords(i);return [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].filter(([r,c])=>r>=0&&r<this.rows&&c>=0&&c<this.cols).map(([r,c])=>this.key(r,c)); }
+    piece(type,special=null) { return {id:++this.serial,type,special}; }
+    randomPiece() { return this.piece(this.config.palette[Math.floor(this.random()*this.config.palette.length)]); }
+    valid(i) { return Number.isInteger(i)&&i>=0&&i<this.board.length&&!this.holes.has(i); }
+    adjacent(a,b) { const x=this.coords(a),y=this.coords(b); return Math.abs(x.r-y.r)+Math.abs(x.c-y.c)===1; }
+    type(i) { const p=this.board[i]; return this.blocked(i)||!p||p.special==='disco' ? null : p.type; }
+    swap(a,b) { [this.board[a],this.board[b]]=[this.board[b],this.board[a]]; }
+    scan(preferred=[]) {
+      const runs=[],squares=[];
+      for (let r=0;r<this.rows;r++) for(let c=0;c<this.cols;) {
+        const start=c,type=this.type(this.key(r,c));
+        while(++c<this.cols&&this.type(this.key(r,c))===type) {}
+        if(type&&c-start>=3) runs.push({axis:'row',cells:Array.from({length:c-start},(_,n)=>this.key(r,start+n))});
+      }
+      for (let c=0;c<this.cols;c++) for(let r=0;r<this.rows;) {
+        const start=r,type=this.type(this.key(r,c));
+        while(++r<this.rows&&this.type(this.key(r,c))===type) {}
+        if(type&&r-start>=3) runs.push({axis:'column',cells:Array.from({length:r-start},(_,n)=>this.key(start+n,c))});
+      }
+      for(let r=0;r<this.rows-1;r++) for(let c=0;c<this.cols-1;c++) {
+        const cells=[this.key(r,c),this.key(r,c+1),this.key(r+1,c),this.key(r+1,c+1)],type=this.type(cells[0]);
+        if(type&&cells.every(i=>this.type(i)===type)) squares.push({axis:'square',cells});
+      }
+      const groups=[];
+      for(const run of [...runs,...squares]) {
+        const overlaps=groups.filter(g=>run.cells.some(i=>g.cells.has(i)));
+        const group={cells:new Set(run.cells),runs:[run]};
+        for(const old of overlaps) {
+          old.cells.forEach(i=>group.cells.add(i)); group.runs.push(...old.runs);
+          groups.splice(groups.indexOf(old),1);
+        }
+        groups.push(group);
+      }
+      const cells=[],spawns=[];
+      for(const group of groups) {
+        cells.push(...group.cells);
+        const five=group.runs.find(r=>r.axis!=='square'&&r.cells.length>=5);
+        const cross=group.runs.some(a=>a.axis==='row'&&group.runs.some(b=>b.axis==='column'&&a.cells.some(i=>b.cells.includes(i))));
+        const four=group.runs.find(r=>r.axis!=='square'&&r.cells.length===4);
+        const square=group.runs.some(r=>r.axis==='square');
+        const special=five?'disco':cross?'wrapped':four?four.axis:square?(this.config.squareSpecial||'disco'):null;
+        if(special) {
+          const choices=[...preferred,...group.cells];
+          const at=choices.find(i=>group.cells.has(i)&&!this.board[i].special)??[...group.cells][0];
+          spawns.push({at,type:this.board[at].type,special});
+        }
+      }
+      return {cells:[...new Set(cells)],spawns};
+    }
+    generate() {
+      for(let attempt=0;attempt<200;attempt++) {
+        this.board.fill(null);
+        for(let i=0;i<this.board.length;i++) {
+          if(this.blocked(i)) continue;
+          const {r,c}=this.coords(i),offset=Math.floor(this.random()*this.config.palette.length);
+          for(let n=0;n<this.config.palette.length;n++) {
+            const type=this.config.palette[(offset+n)%this.config.palette.length];
+            if(c>=2&&this.type(i-1)===type&&this.type(i-2)===type) continue;
+            if(r>=2&&this.type(i-this.cols)===type&&this.type(i-this.cols*2)===type) continue;
+            if(r>=1&&c>=1&&this.type(i-1)===type&&this.type(i-this.cols)===type&&this.type(i-this.cols-1)===type) continue;
+            this.board[i]=this.piece(type); break;
+          }
+        }
+        if(this.findMove()) return;
+      }
+      throw new Error('Could not create a playable board');
+    }
+    findMove() {
+      for(let a=0;a<this.board.length;a++) {
+        if(!this.board[a]||this.blocked(a)) continue;
+        for(const b of [a+1,a+this.cols]) {
+          if(!this.valid(b)||!this.adjacent(a,b)||this.blocked(b)||!this.board[b]) continue;
+          const x=this.board[a],y=this.board[b];
+          if(x.special||y.special) return [a,b];
+          if(x.type===y.type) continue;
+          this.swap(a,b); const found=this.scan().cells.length>0; this.swap(a,b);
+          if(found) return [a,b];
+        }
+      }
+      return null;
+    }
+    area(at,radius=1) {
+      const p=this.coords(at),cells=[];
+      for(let r=Math.max(0,p.r-radius);r<=Math.min(this.rows-1,p.r+radius);r++)
+        for(let c=Math.max(0,p.c-radius);c<=Math.min(this.cols-1,p.c+radius);c++) cells.push(this.key(r,c));
+      return cells;
+    }
+    line(at,axis) {
+      const {r,c}=this.coords(at);
+      return axis==='row'?Array.from({length:this.cols},(_,n)=>this.key(r,n)):Array.from({length:this.rows},(_,n)=>this.key(n,c));
+    }
+    bomb(at) {
+      const {r,c}=this.coords(at),cells=[];
+      for(let dr=-2;dr<=2;dr++)for(let dc=-2;dc<=2;dc++) {
+        if(Math.abs(dr)+Math.abs(dc)>2)continue;
+        const nr=r+dr,nc=c+dc;
+        if(nr>=0&&nr<this.rows&&nc>=0&&nc<this.cols&&this.valid(this.key(nr,nc)))cells.push(this.key(nr,nc));
+      }
+      return cells;
+    }
+    targetCell(excluded=[]) {
+      const skip=new Set(excluded);
+      const cells=this.board.map((p,i)=>i).filter(i=>this.valid(i)&&!skip.has(i));
+      const priority=i=>this.ice.has(i)&&this.targets.ice>0?5:this.crates.has(i)&&this.targets.crate>0?4:this.bags.has(i)&&this.targets.handbag>0?3:this.targets[this.board[i]?.type]>0?2:this.board[i]?1:0;
+      cells.sort((a,b)=>priority(b)-priority(a));
+      return cells.find(i=>priority(i)>0);
+    }
+    activate(at) {
+      if(!this.valid(at)||!this.board[at]?.special||this.moves<=0||this.won)return null;
+      this.moves--;return {cells:[at],spawns:[],label:'SP
+
+--- board ---
+(function(root,factory) {
+  const engine = factory();
+  if (typeof module === 'object' && module.exports) module.exports = engine;
+  else root.WamEngine = engine;
+})(typeof window !== 'undefined' ? window : this, function() {
+  'use strict';
+  const ROWS=10, COLS=6;
+  const key=(r,c)=>r*COLS+c;
+  const coords=i=>({r:Math.floor(i/COLS),c:i%COLS});
+  class Game {
+    constructor(config,random=Math.random) {
+      this.config=config; this.random=random; this.serial=0;
+      this.rows=config.mask?.length||ROWS; this.cols=config.mask?.[0]?.length||COLS;
+      if(config.mask && config.mask.some(row=>row.length!==this.cols||/[^.#]/.test(row))) throw new Error('Invalid board shape');
+      this.holes=new Set();
+      config.mask?.forEach((row,r)=>[...row].forEach((cell,c)=>{if(cell==='.')this.holes.add(this.key(r,c));}));
+      this.crates=new Map((config.crates||[]).map(([r,c,hits=1])=>[this.key(r,c),hits]));
+      this.ice=new Map((config.ice||[]).map(([r,c,hits=1])=>[this.key(r,c),hits]));
+      this.moves=config.moves; this.score=0; this.targets={...config.targets};
+      this.boosters={rocket:0,hammer:0,disco:0,swap:0};
+      this.bags=new Map((config.bags||[]).map(([r,c])=>[this.key(r,c),2]));
+      this.board=Array(this.rows*this.cols).fill(null);
+      this.generate();
+    }
+    key(r,c) { return r*this.cols+c; }
+    coords(i) { return {r:Math.floor(i/this.cols),c:i%this.cols}; }
+    blocked(i) { return this.holes.has(i)||this.bags.has(i)||this.crates.has(i); }
+    neighbours(i) { const {r,c}=this.coords(i);return [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].filter(([r,c])=>r>=0&&r<this.rows&&c>=0&&c<this.cols).map(([r,c])=>this.key(r,c)); }
+    piece(type,special=null) { return {id:++this.serial,type,special}; }
+    randomPiece() { return this.piece(this.config.palette[Math.floor(this.random()*this.config.palette.length)]); }
+    valid(i) { return Number.isInteger(i)&&i>=0&&i<this.board.length&&!this.holes.has(i); }
+    adjacent(a,b) { const x=this.coords(a),y=this.coords(b); return Math.abs(x.r-y.r)+Math.abs(x.c-y.c)===1; }
+    type(i) { const p=this.board[i]; return this.blocked(i)||!p||p.special==='disco' ? null : p.type; }
+    swap(a,b) { [this.board[a],this.board[b]]=[this.board[b],this.board[a]]; }
+    scan(preferred=[]) {
+      const runs=[],squares=[];
+      for (let r=0;r<this.rows;r++) for(let c=0;c<this.cols;) {
+        const start=c,type=this.type(this.key(r,c));
+        while(++c<this.cols&&this.type(this.key(r,c))===type) {}
+        if(type&&c-start>=3) runs.push({axis:'row',cells:Array.from({length:c-start},(_,n)=>this.key(r,start+n))});
+      }
+      for (let c=0;c<this.cols;c++) for(let r=0;r<this.rows;) {
+        const start=r,type=this.type(this.key(r,c));
+        while(++r<this.rows&&this.type(this.key(r,c))===type) {}
+        if(type&&r-start>=3) runs.push({axis:'column',cells:Array.from({length:r-start},(_,n)=>this.key(start+n,c))});
+      }
+      for(let r=0;r<this.rows-1;r++) for(let c=0;c<this.cols-1;c++) {
+        const cells=[this.key(r,c),this.key(r,c+1),this.key(r+1,c),this.key(r+1,c+1)],type=this.type(cells[0]);
+        if(type&&cells.every(i=>this.type(i)===type)) squares.push({axis:'square',cells});
+      }
+      const groups=[];
+      for(const run of [...runs,...squares]) {
+        const overlaps=groups.filter(g=>run.cells.some(i=>g.cells.has(i)));
+        const group={cells:new Set(run.cells),runs:[run]};
+        for(const old of overlaps) {
+          old.cells.forEach(i=>group.cells.add(i)); group.runs.push(...old.runs);
+          groups.splice(groups.indexOf(old),1);
+        }
+        groups.push(group);
+      }
+      const cells=[],spawns=[];
+      for(const group of groups) {
+        cells.push(...group.cells);
+        const five=group.runs.find(r=>r.axis!=='square'&&r.cells.length>=5);
+        const cross=group.runs.some(a=>a.axis==='row'&&group.runs.some(b=>b.axis==='column'&&a.cells.some(i=>b.cells.includes(i))));
+        const four=group.runs.find(r=>r.axis!=='square'&&r.cells.length===4);
+        const square=group.runs.some(r=>r.axis==='square');
+        const special=five?'disco':cross?'wrapped':four?four.axis:square?(this.config.squareSpecial||'disco'):null;
+        if(special) {
+          const choices=[...preferred,...group.cells];
+          const at=choices.find(i=>group.cells.has(i)&&!this.board[i].special)??[...group.cells][0];
+          spawns.push({at,type:this.board[at].type,special});
+        }
+      }
+      return {cells:[...new Set(cells)],spawns};
+    }
+    generate() {
+      for(let attempt=0;attempt<200;attempt++) {
+        this.board.fill(null);
+        for(let i=0;i<this.board.length;i++) {
+          if(this.blocked(i)) continue;
+          const {r,c}=this.coords(i),offset=Math.floor(this.random()*this.config.palette.length);
+          for(let n=0;n<this.config.palette.length;n++) {
+            const type=this.config.palette[(offset+n)%this.config.palette.length];
+            if(c>=2&&this.type(i-1)===type&&this.type(i-2)===type) continue;
+            if(r>=2&&this.type(i-this.cols)===type&&this.type(i-this.cols*2)===type) continue;
+            if(r>=1&&c>=1&&this.type(i-1)===type&&this.type(i-this.cols)===type&&this.type(i-this.cols-1)===type) continue;
+            this.board[i]=this.piece(type); break;
+          }
+        }
+        if(this.findMove()) return;
+      }
+      throw new Error('Could not create a playable board');
+    }
+    findMove() {
+      for(let a=0;a<this.board.length;a++) {
+        if(!this.board[a]||this.blocked(a)) continue;
+        for(const b of [a+1,a+this.cols]) {
+          if(!this.valid(b)||!this.adjacent(a,b)||this.blocked(b)||!this.board[b]) continue;
+          const x=this.board[a],y=this.board[b];
+          if(x.special||y.special) return [a,b];
+          if(x.type===y.type) continue;
+          this.swap(a,b); const found=this.scan().cells.length>0; this.swap(a,b);
+          if(found) return [a,b];
+        }
+      }
+      return null;
+    }
+    area(at,radius=1) {
+      const p=this.coords(at),cells=[];
+      for(let r=Math.max(0,p.r-radius);r<=Math.min(this.rows-1,p.r+radius);r++)
+        for(let c=Math.max(0,p.c-radius);c<=Math.min(this.cols-1,p.c+radius);c++) cells.push(this.key(r,c));
+      return cells;
+    }
+    line(at,axis) {
+      const {r,c}=this.coords(at);
+      return axis==='row'?Array.from({length:this.cols},(_,n)=>this.key(r,n)):Array.from({length:this.rows},(_,n)=>this.key(n,c));
+    }
+    bomb(at) {
+      const {r,c}=this.coords(at),cells=[];
+      for(let dr=-2;dr<=2;dr++)for(let dc=-2;dc<=2;dc++) {
+        if(Math.abs(dr)+Math.abs(dc)>2)continue;
+        const nr=r+dr,nc=c+dc;
+        if(nr>=0&&nr<this.rows&&nc>=0&&nc<this.cols&&this.valid(this.key(nr,nc)))cells.push(this.key(nr,nc));
+      }
+      return cells;
+    }
+    targetCell(excluded=[]) {
+      const skip=new Set(excluded);
+      const cells=this.board.map((p,i)=>i).filter(i=>this.valid(i)&&!skip.has(i));
+      const priority=i=>this.ice.has(i)&&this.targets.ice>0?5:this.crates.has(i)&&this.targets.crate>0?4:this.bags.has(i)&&this.targets.handbag>0?3:this.targets[this.board[i]?.type]>0?2:this.board[i]?1:0;
+      cells.sort((a,b)=>priority(b)-priority(a));
+      return cells.find(i=>priority(i)>0);
+    }
+    activate(at) {
+      if(!this.valid(at)||!this.board[at]?.special||this.moves<=0||this.won)return null;
+      this.moves--;return {cells:[at],spawns:[],label:'SPECIAL CLEAR!'};
+    }
+    bestColour() {
+      const counts=new Map();
+      for(const p of this.board) if(p&&p.special!=='disco') counts.set(p.type,(counts.get(p.type)||0)+1);
+      return [...counts].sort((a,b)=>Math.min(b[1],this.targets[b[0]]||0)-Math.min(a[1],this.targets[a[0]]||0)||b[1]-a[1])[0]
