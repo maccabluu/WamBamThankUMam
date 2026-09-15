@@ -1,0 +1,159 @@
+name: Wam Bam Alpha 11.2.0 Level 1 Gameplay Prototype
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/alpha-11-2-0.yml'
+      - 'release-tools/alpha-11.2.0/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wam-11-2-0-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Verify approved Level 1 artwork in repository
+        run: |
+          set -euo pipefail
+          test -f release-tools/alpha-11.2.0/wambam-level1-bg.jpg
+          echo '3c55897aa5db6fc4f5373360cc151a3b298ebaf38c03727d841508aedd2e8a87  release-tools/alpha-11.2.0/wambam-level1-bg.jpg' | sha256sum -c -
+          test "$(wc -c < release-tools/alpha-11.2.0/wambam-level1-bg.jpg)" = '61783'
+          file release-tools/alpha-11.2.0/wambam-level1-bg.jpg | grep -q 'JPEG image data'
+
+      - name: Download exact signed 11.1.5 production base
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o base.apk https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.1.5/WamBam_Alpha_11.1.5_Install_Recovery.apk
+          echo '00e0b74e6b4e2c7d578f59d0851e20c554e82f6aa7427e7e86ba8a6a1b074823  base.apk' | sha256sum -c -
+          curl -fL --retry 3 -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          java -jar apktool.jar d -f base.apk -o work
+          test -f work/assets/www/wam-campaign.js
+          test -f work/assets/www/wam-ui.js
+          test -f work/assets/www/wam-engine.js
+
+      - name: Apply Level 1 gameplay overhaul
+        run: |
+          set -euo pipefail
+          python3 release-tools/alpha-11.2.0/prepare.py work/assets/www
+
+      - name: Verify Level 1 runtime patch
+        run: |
+          set -euo pipefail
+          node --check work/assets/www/gameplay-112.js
+          grep -Fq "id:1, name:'Bam Lounge Opening'" work/assets/www/wam-campaign.js
+          grep -Fq "targets:{cherries:18,star:12}" work/assets/www/wam-campaign.js
+          grep -Fq "const earlyShapes=['square'" work/assets/www/wam-campaign.js
+          grep -Fq '<script src="gameplay-112.js"></script>' work/assets/www/index.html
+          grep -Fq 'wam112-stars' work/assets/www/gameplay-112.js
+          grep -Fq 'MIC BLAST' work/assets/www/gameplay-112.js
+          echo '3c55897aa5db6fc4f5373360cc151a3b298ebaf38c03727d841508aedd2e8a87  work/assets/www/artwork/wambam-level1-bg.jpg' | sha256sum -c -
+
+      - name: Set Android release version
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('work/apktool.yml')
+          s=p.read_text()
+          s,n=re.subn(r'(?m)^(\s*versionCode:\s*).+$',r'\g<1>112000',s,count=1)
+          s,m=re.subn(r'(?m)^(\s*versionName:\s*).+$',r'\g<1>11.2.0',s,count=1)
+          assert n==m==1
+          p.write_text(s)
+          PY
+
+      - name: Build production APK
+        run: |
+          set -euo pipefail
+          sdkmanager 'build-tools;35.0.0'
+          java -jar apktool.jar b work -o WamBam-11.2.0-unsigned.apk
+
+      - name: Sign with permanent Wam Bam identity and verify
+        env:
+          WB_KEYSTORE_B64: ${{ secrets.WB_KEYSTORE_B64 }}
+          WB_KEYSTORE_PASSWORD: ${{ secrets.WB_KEYSTORE_PASSWORD }}
+          WB_KEY_ALIAS: ${{ secrets.WB_KEY_ALIAS }}
+          WB_KEY_PASSWORD: ${{ secrets.WB_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for value in WB_KEYSTORE_B64 WB_KEYSTORE_PASSWORD WB_KEY_ALIAS WB_KEY_PASSWORD; do
+            test -n "${!value:-}" || { echo "Missing Wam Bam signing secret: $value"; exit 1; }
+          done
+          printf '%s' "$WB_KEYSTORE_B64" | base64 -d > release.keystore
+          trap 'rm -f release.keystore' EXIT
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/zipalign" -f 4 WamBam-11.2.0-unsigned.apk aligned.apk
+          "$BT/apksigner" sign --ks release.keystore --ks-pass env:WB_KEYSTORE_PASSWORD --ks-key-alias "$WB_KEY_ALIAS" --key-pass env:WB_KEY_PASSWORD --out WamBam_Alpha_11.2.0_Level_1_Prototype.apk aligned.apk
+          "$BT/apksigner" verify --verbose --print-certs WamBam_Alpha_11.2.0_Level_1_Prototype.apk > signature.txt
+          "$BT/apksigner" verify --print-certs base.apk > base-signature.txt
+          NEW="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' signature.txt)"
+          BASE="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' base-signature.txt)"
+          echo "new=$NEW"
+          echo "base=$BASE"
+          test "$NEW" = 'd04c069c47d1642c83243de681e62bfd1a5c996816ab0c7b15dea82a91338ad1'
+          test "$NEW" = "$BASE"
+          "$BT/zipalign" -c 4 WamBam_Alpha_11.2.0_Level_1_Prototype.apk
+          "$BT/aapt" dump badging WamBam_Alpha_11.2.0_Level_1_Prototype.apk > package.txt
+          grep -q "package: name='com.macca.wambamthankumam' versionCode='112000' versionName='11.2.0'" package.txt
+          unzip -p WamBam_Alpha_11.2.0_Level_1_Prototype.apk assets/www/gameplay-112.js | grep -Fq 'wam112-stars'
+          unzip -p WamBam_Alpha_11.2.0_Level_1_Prototype.apk assets/www/wam-campaign.js | grep -Fq "id:1, name:'Bam Lounge Opening'"
+          unzip -p WamBam_Alpha_11.2.0_Level_1_Prototype.apk assets/www/artwork/wambam-level1-bg.jpg | sha256sum | grep -q '^3c55897aa5db6fc4f5373360cc151a3b298ebaf38c03727d841508aedd2e8a87 '
+          sha256sum WamBam_Alpha_11.2.0_Level_1_Prototype.apk > SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WamBam-Alpha-11.2.0-Level-1-Prototype
+          path: |
+            WamBam_Alpha_11.2.0_Level_1_Prototype.apk
+            SHA256SUMS.txt
+            signature.txt
+            base-signature.txt
+            package.txt
+          retention-days: 30
+
+      - name: Publish Alpha 11.2.0
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v11.2.0
+          name: Wam Bam Alpha 11.2.0 - Level 1 Prototype
+          prerelease: true
+          body: |
+            First gameplay-screen prototype for the new Wam Bam direction.
+
+            Level 1 — Bam Lounge Opening:
+            - Uses the new approved neon Bam Lounge background with the Wam Bam girl on the right.
+            - New clean square Level 1 board.
+            - Goals panel at top left.
+            - Three-star live progress meter at top centre.
+            - Moves panel at top right.
+            - Restyled real booster tray at the bottom: Mic Blast, Heel Smash, Disco Ball and Free Swap.
+            - Keeps the real Wam Bam match-3 engine, saves and campaign progression.
+            - Levels 2–100 remain unchanged in this prototype.
+
+            Identity checks:
+            - Package: com.macca.wambamthankumam
+            - Android versionCode: 112000
+            - Certificate SHA-256: d04c069c47d1642c83243de681e62bfd1a5c996816ab0c7b15dea82a91338ad1
+
+            Build/static/package/signature verification passed in CI. Physical Android/BlueStacks touch and visual testing still needs to be confirmed on-device before this layout is rolled out to the remaining levels.
+          files: |
+            WamBam_Alpha_11.2.0_Level_1_Prototype.apk
+            SHA256SUMS.txt
