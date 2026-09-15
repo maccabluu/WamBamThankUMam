@@ -1,0 +1,150 @@
+name: Wam Bam Alpha 11.2.6 HUD Polish
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/alpha-11-2-6.yml'
+      - 'release-tools/alpha-11.2.6/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wam-11-2-6-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Verify patch source and Android SDK
+        run: |
+          set -euo pipefail
+          test -f release-tools/alpha-11.2.6/gameplay-1126.js
+          test -f release-tools/alpha-11.2.6/prepare.py
+          test -f release-tools/alpha-11.2.6/heel-smash-1126.svg
+          node --check release-tools/alpha-11.2.6/gameplay-1126.js
+          grep -Fq '<svg' release-tools/alpha-11.2.6/heel-smash-1126.svg
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -perm -111 | head -n1 || true)"; fi
+          test -x "$SDKMANAGER"
+          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
+
+      - name: Download exact signed 11.2.5 production base
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o base.apk https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.2.5/WamBam_Alpha_11.2.5_Layout_Polish.apk
+          echo 'eaad8eaa392393cfae45c11a79447d087315e315741567c4ca81a6ebe755dfb5  base.apk' | sha256sum -c -
+          curl -fL --retry 3 -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          java -jar apktool.jar d -f base.apk -o work
+          test -f work/assets/www/gameplay-1125.js
+
+      - name: Apply 11.2.6 HUD polish
+        run: |
+          set -euo pipefail
+          python3 release-tools/alpha-11.2.6/prepare.py work/assets/www
+
+      - name: Verify visual patch
+        run: |
+          set -euo pipefail
+          node --check work/assets/www/gameplay-1126.js
+          grep -Fq '<script src="gameplay-1126.js"></script>' work/assets/www/index.html
+          grep -Fq "Moves" work/assets/www/gameplay-1126.js
+          grep -Fq "wam112-goals-panel" work/assets/www/gameplay-1126.js
+          grep -Fq "heel-smash-1126.svg" work/assets/www/gameplay-1126.js
+          test -f work/assets/www/icons/heel-smash-1126.svg
+
+      - name: Set Android release version
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('work/apktool.yml')
+          s=p.read_text()
+          s,n=re.subn(r'(?m)^(\s*versionCode:\s*).+$',r'\g<1>112006',s,count=1)
+          s,m=re.subn(r'(?m)^(\s*versionName:\s*).+$',r'\g<1>11.2.6',s,count=1)
+          assert n==m==1
+          p.write_text(s)
+          PY
+
+      - name: Build production APK
+        run: |
+          set -euo pipefail
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'build-tools;35.0.0'
+          java -jar apktool.jar b work -o WamBam-11.2.6-unsigned.apk
+
+      - name: Sign with permanent Wam Bam identity and verify
+        env:
+          WB_KEYSTORE_B64: ${{ secrets.WB_KEYSTORE_B64 }}
+          WB_KEYSTORE_PASSWORD: ${{ secrets.WB_KEYSTORE_PASSWORD }}
+          WB_KEY_ALIAS: ${{ secrets.WB_KEY_ALIAS }}
+          WB_KEY_PASSWORD: ${{ secrets.WB_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for value in WB_KEYSTORE_B64 WB_KEYSTORE_PASSWORD WB_KEY_ALIAS WB_KEY_PASSWORD; do test -n "${!value:-}" || exit 1; done
+          printf '%s' "$WB_KEYSTORE_B64" | base64 -d > release.keystore
+          trap 'rm -f release.keystore' EXIT
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/zipalign" -f 4 WamBam-11.2.6-unsigned.apk aligned.apk
+          "$BT/apksigner" sign --ks release.keystore --ks-pass env:WB_KEYSTORE_PASSWORD --ks-key-alias "$WB_KEY_ALIAS" --key-pass env:WB_KEY_PASSWORD --out WamBam_Alpha_11.2.6_HUD_Polish.apk aligned.apk
+          "$BT/apksigner" verify --verbose --print-certs WamBam_Alpha_11.2.6_HUD_Polish.apk > signature.txt
+          "$BT/apksigner" verify --print-certs base.apk > base-signature.txt
+          NEW="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' signature.txt)"
+          BASE="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' base-signature.txt)"
+          test "$NEW" = 'd04c069c47d1642c83243de681e62bfd1a5c996816ab0c7b15dea82a91338ad1'
+          test "$NEW" = "$BASE"
+          "$BT/aapt" dump badging WamBam_Alpha_11.2.6_HUD_Polish.apk > package.txt
+          grep -q "package: name='com.macca.wambamthankumam' versionCode='112006' versionName='11.2.6'" package.txt
+          sha256sum WamBam_Alpha_11.2.6_HUD_Polish.apk > SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WamBam-Alpha-11.2.6-HUD-Polish
+          path: |
+            WamBam_Alpha_11.2.6_HUD_Polish.apk
+            SHA256SUMS.txt
+            signature.txt
+            base-signature.txt
+            package.txt
+          retention-days: 30
+
+      - name: Publish Alpha 11.2.6
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v11.2.6
+          name: Wam Bam Alpha 11.2.6 - HUD Polish
+          prerelease: true
+          body: |
+            BlueStacks-driven Level 1 HUD polish based on the supplied visual references.
+
+            Changes:
+            - Reworks MOVES into a glossy pink/gold card with script-style “Moves”, cream inner panel, sparkles and a larger dark-burgundy move count.
+            - Reworks GOALS into a glossy pink/gold card with a cream inner panel, gold stars, larger target icons and stronger target numbers.
+            - Replaces Heel Smash artwork with a new transparent retro leopard stiletto over a Wam Bam starburst medallion.
+            - Keeps the 11.2.5 board position, lower booster tray, transparent Mic Blast, Disco Ball and pink/blue Free Swap.
+            - Keeps the Royal-style 3-star LEVEL 1 progress meter.
+            - Real match-3 engine, saves and campaign progression retained.
+
+            Identity checks:
+            - Package: com.macca.wambamthankumam
+            - Android versionCode: 112006
+            - Version: 11.2.6
+            - Permanent signing certificate unchanged.
+
+            CI verifies build, package and signature. BlueStacks visual testing still needs user confirmation.
+          files: |
+            WamBam_Alpha_11.2.6_HUD_Polish.apk
+            SHA256SUMS.txt
