@@ -1,0 +1,49 @@
+name: Inspect Wam Bam 11.1.5 Level 1 Runtime
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-level1-11-1-5.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download exact production APK
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o base.apk https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.1.5/WamBam_Alpha_11.1.5_Install_Recovery.apk
+          echo '00e0b74e6b4e2c7d578f59d0851e20c554e82f6aa7427e7e86ba8a6a1b074823  base.apk' | sha256sum -c -
+          mkdir -p out
+          unzip -p base.apk assets/www/wam-campaign.js > out/wam-campaign.js
+          unzip -p base.apk assets/www/wam-ui.js > out/wam-ui.js
+          unzip -p base.apk assets/www/wam-engine.js > out/wam-engine.js
+          unzip -p base.apk assets/www/index.html > out/index.html
+
+      - name: Print Level 1 and GameView hooks
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          for f in ['wam-campaign.js','wam-ui.js','wam-engine.js']:
+              s=Path('out/'+f).read_text(errors='replace')
+              print('\n===== '+f+' =====')
+              for pat in [r'LEVELS', r'id\s*:\s*1\b', r'class\s+GameView', r'function\s+GameView', r'constructor\s*\(', r'board', r'targets', r'moves', r'background', r'grid']:
+                  m=re.search(pat,s,re.I)
+                  if not m: continue
+                  a=max(0,m.start()-1800); b=min(len(s),m.start()+6000)
+                  print('\n--- around',pat,'---\n',s[a:b])
+                  break
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WamBam-11.1.5-Level1-Runtime
+          path: out/
+          retention-days: 7
