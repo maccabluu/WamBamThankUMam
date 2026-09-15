@@ -1,0 +1,156 @@
+name: Wam Bam Alpha 11.2.9 Forced Booster Bar
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/alpha-11-2-9.yml'
+      - 'release-tools/alpha-11.2.9/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wam-11-2-9-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Verify patch source and Android SDK
+        run: |
+          set -euo pipefail
+          test -f release-tools/alpha-11.2.9/gameplay-1129.js
+          test -f release-tools/alpha-11.2.9/prepare.py
+          node --check release-tools/alpha-11.2.9/gameplay-1129.js
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -perm -111 | head -n1 || true)"; fi
+          test -x "$SDKMANAGER"
+          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
+
+      - name: Download exact signed 11.2.8 production base
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o base.apk https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.2.8/WamBam_Alpha_11.2.8_Premium_Boosters.apk
+          echo '4281e39a3d6944cf9b980e288675a729d7fa1c5d94b02301c3e1dfbe26314b1e  base.apk' | sha256sum -c -
+          curl -fL --retry 3 -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          java -jar apktool.jar d -f base.apk -o work
+          test -f work/assets/www/gameplay-1128.js
+          test -f work/assets/www/icons/booster-mic-1128.svg
+          test -f work/assets/www/icons/booster-heel-1128.svg
+          test -f work/assets/www/icons/booster-disco-1128.svg
+          test -f work/assets/www/icons/booster-swap-1128.svg
+
+      - name: Apply 11.2.9 forced booster bar
+        run: |
+          set -euo pipefail
+          python3 release-tools/alpha-11.2.9/prepare.py work/assets/www
+
+      - name: Verify booster runtime patch
+        run: |
+          set -euo pipefail
+          node --check work/assets/www/gameplay-1129.js
+          grep -Fq '<script src="gameplay-1129.js"></script>' work/assets/www/index.html
+          grep -Fq "setProperty(prop,value,'important')" work/assets/www/gameplay-1129.js
+          grep -Fq "1124px" work/assets/www/gameplay-1129.js
+          grep -Fq "164px" work/assets/www/gameplay-1129.js
+          grep -Fq "MIC BLAST" work/assets/www/gameplay-1129.js
+          grep -Fq "HEEL SMASH" work/assets/www/gameplay-1129.js
+          grep -Fq "DISCO BALL" work/assets/www/gameplay-1129.js
+          grep -Fq "FREE SWAP" work/assets/www/gameplay-1129.js
+          grep -Fq "#########" work/assets/www/wam-campaign.js
+
+      - name: Set Android release version
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('work/apktool.yml')
+          s=p.read_text()
+          s,n=re.subn(r'(?m)^(\s*versionCode:\s*).+$',r'\g<1>112009',s,count=1)
+          s,m=re.subn(r'(?m)^(\s*versionName:\s*).+$',r'\g<1>11.2.9',s,count=1)
+          assert n==m==1
+          p.write_text(s)
+          PY
+
+      - name: Build production APK
+        run: |
+          set -euo pipefail
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'build-tools;35.0.0'
+          java -jar apktool.jar b work -o WamBam-11.2.9-unsigned.apk
+
+      - name: Sign with permanent Wam Bam identity and verify
+        env:
+          WB_KEYSTORE_B64: ${{ secrets.WB_KEYSTORE_B64 }}
+          WB_KEYSTORE_PASSWORD: ${{ secrets.WB_KEYSTORE_PASSWORD }}
+          WB_KEY_ALIAS: ${{ secrets.WB_KEY_ALIAS }}
+          WB_KEY_PASSWORD: ${{ secrets.WB_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for value in WB_KEYSTORE_B64 WB_KEYSTORE_PASSWORD WB_KEY_ALIAS WB_KEY_PASSWORD; do test -n "${!value:-}" || exit 1; done
+          printf '%s' "$WB_KEYSTORE_B64" | base64 -d > release.keystore
+          trap 'rm -f release.keystore' EXIT
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/zipalign" -f 4 WamBam-11.2.9-unsigned.apk aligned.apk
+          "$BT/apksigner" sign --ks release.keystore --ks-pass env:WB_KEYSTORE_PASSWORD --ks-key-alias "$WB_KEY_ALIAS" --key-pass env:WB_KEY_PASSWORD --out WamBam_Alpha_11.2.9_Forced_Booster_Bar.apk aligned.apk
+          "$BT/apksigner" verify --verbose --print-certs WamBam_Alpha_11.2.9_Forced_Booster_Bar.apk > signature.txt
+          "$BT/apksigner" verify --print-certs base.apk > base-signature.txt
+          NEW="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' signature.txt)"
+          BASE="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' base-signature.txt)"
+          test "$NEW" = 'd04c069c47d1642c83243de681e62bfd1a5c996816ab0c7b15dea82a91338ad1'
+          test "$NEW" = "$BASE"
+          "$BT/aapt" dump badging WamBam_Alpha_11.2.9_Forced_Booster_Bar.apk > package.txt
+          grep -q "package: name='com.macca.wambamthankumam' versionCode='112009' versionName='11.2.9'" package.txt
+          sha256sum WamBam_Alpha_11.2.9_Forced_Booster_Bar.apk > SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WamBam-Alpha-11.2.9-Forced-Booster-Bar
+          path: |
+            WamBam_Alpha_11.2.9_Forced_Booster_Bar.apk
+            SHA256SUMS.txt
+            signature.txt
+            base-signature.txt
+            package.txt
+          retention-days: 30
+
+      - name: Publish Alpha 11.2.9
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v11.2.9
+          name: Wam Bam Alpha 11.2.9 - Forced Booster Bar
+          prerelease: true
+          body: |
+            Retry of the booster redesign after 11.2.8 did not visibly apply as intended in BlueStacks.
+
+            Changes:
+            - Forces the live booster tray and button dimensions/styles directly every render with important inline styles so older booster CSS cannot win.
+            - Removes the separate BOOSTERS title to match the supplied reference more closely.
+            - Uses one deep burgundy/gold connected booster frame with four glossy premium cards.
+            - Makes Mic Blast, Heel Smash, Disco Ball and Free Swap substantially larger.
+            - Moves quantity bubbles to the lower-right side of each icon area.
+            - Uses bold white labels and brighter icon glow for readability.
+            - Keeps the 9-column Level 1 board, HUD, girl visibility, saves, progression and existing booster functions.
+
+            Identity checks:
+            - Package: com.macca.wambamthankumam
+            - Android versionCode: 112009
+            - Version: 11.2.9
+            - Permanent signing certificate unchanged.
+
+            CI verifies build, package, signature and runtime patch presence. BlueStacks visual confirmation is still required.
+          files: |
+            WamBam_Alpha_11.2.9_Forced_Booster_Bar.apk
+            SHA256SUMS.txt
