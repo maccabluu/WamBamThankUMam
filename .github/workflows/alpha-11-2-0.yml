@@ -27,11 +27,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
-
-      - name: Verify approved Level 1 artwork in repository
+      - name: Verify Android SDK and approved Level 1 artwork
         run: |
           set -euo pipefail
+          test -n "${ANDROID_HOME:-}"
+          command -v sdkmanager
           test -f release-tools/alpha-11.2.0/wambam-level1-bg.jpg
           echo '3c55897aa5db6fc4f5373360cc151a3b298ebaf38c03727d841508aedd2e8a87  release-tools/alpha-11.2.0/wambam-level1-bg.jpg' | sha256sum -c -
           test "$(wc -c < release-tools/alpha-11.2.0/wambam-level1-bg.jpg)" = '61783'
@@ -82,6 +82,7 @@ jobs:
       - name: Build production APK
         run: |
           set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
           sdkmanager 'build-tools;35.0.0'
           java -jar apktool.jar b work -o WamBam-11.2.0-unsigned.apk
 
