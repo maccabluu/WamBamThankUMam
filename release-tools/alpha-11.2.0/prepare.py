@@ -1,10 +1,14 @@
 from pathlib import Path
+import base64
 import hashlib
 import shutil
 import sys
 
 root = Path(sys.argv[1])
 tools = Path(__file__).resolve().parent
+
+EXPECTED_BG_SHA = '3c55897aa5db6fc4f5373360cc151a3b298ebaf38c03727d841508aedd2e8a87'
+EXPECTED_BG_SIZE = 61783
 
 
 def once(text, old, new, label):
@@ -31,14 +35,18 @@ s = once(s, old_early, new_early, 'Level 1 square board selection')
 s = s.replace('11.1.4', '11.2.0').replace('11.1.5', '11.2.0')
 campaign.write_text(s)
 
-# Add the approved Bam Lounge artwork with the main-page-style girl.
-src_bg = tools / 'wambam-level1-bg.jpg'
+# Reconstruct the approved Bam Lounge artwork from small text chunks. This
+# avoids binary corruption in repository transport and verifies the exact art.
+parts = sorted(tools.glob('bg.b64.part*'))
+assert [p.name for p in parts] == [f'bg.b64.part{i:02d}' for i in range(5)], 'Level 1 background parts are incomplete'
+encoded = ''.join(p.read_text().strip() for p in parts)
+raw = base64.b64decode(encoded, validate=True)
+assert len(raw) == EXPECTED_BG_SIZE, f'Level 1 background size mismatch: {len(raw)}'
+assert hashlib.sha256(raw).hexdigest() == EXPECTED_BG_SHA, 'Level 1 background SHA mismatch'
+assert raw[:2] == b'\xff\xd8' and raw[-2:] == b'\xff\xd9', 'Level 1 background is not a complete JPEG'
 dst_bg = root / 'artwork' / 'wambam-level1-bg.jpg'
-assert src_bg.exists(), 'Level 1 background source is missing'
-assert hashlib.sha256(src_bg.read_bytes()).hexdigest() == '3c55897aa5db6fc4f5373360cc151a3b298ebaf38c03727d841508aedd2e8a87', 'Level 1 background SHA mismatch'
-assert src_bg.read_bytes()[:2] == b'\xff\xd8', 'Level 1 background is not a JPEG'
 dst_bg.parent.mkdir(parents=True, exist_ok=True)
-shutil.copyfile(src_bg, dst_bg)
+dst_bg.write_bytes(raw)
 
 # Add the real Level 1 HUD/progress layer without replacing the match-3 engine.
 shutil.copyfile(tools / 'gameplay-112.js', root / 'gameplay-112.js')
@@ -63,6 +71,7 @@ assert "background:'artwork/wambam-level1-bg.jpg'" in patched
 assert "const earlyShapes=['square'" in patched
 assert (root / 'gameplay-112.js').exists()
 assert 'gameplay-112.js' in index.read_text()
-assert dst_bg.stat().st_size == 61783
+assert dst_bg.stat().st_size == EXPECTED_BG_SIZE
+assert hashlib.sha256(dst_bg.read_bytes()).hexdigest() == EXPECTED_BG_SHA
 
 print('Applied Wam Bam Alpha 11.2.0 Level 1 prototype: new Bam Lounge background, square board, goals/moves HUD, 3-star progress and real booster tray.')
