@@ -8,13 +8,15 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   inspect:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - uses: actions/checkout@v4
+
       - name: Download exact production APK
         run: |
           set -euo pipefail
@@ -26,21 +28,38 @@ jobs:
           unzip -p base.apk assets/www/wam-engine.js > out/wam-engine.js
           unzip -p base.apk assets/www/index.html > out/index.html
 
-      - name: Print Level 1 and GameView hooks
+      - name: Capture compact Level 1 runtime summary
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
-          for f in ['wam-campaign.js','wam-ui.js','wam-engine.js']:
-              s=Path('out/'+f).read_text(errors='replace')
-              print('\n===== '+f+' =====')
-              for pat in [r'LEVELS', r'id\s*:\s*1\b', r'class\s+GameView', r'function\s+GameView', r'constructor\s*\(', r'board', r'targets', r'moves', r'background', r'grid']:
-                  m=re.search(pat,s,re.I)
-                  if not m: continue
-                  a=max(0,m.start()-1800); b=min(len(s),m.start()+6000)
-                  print('\n--- around',pat,'---\n',s[a:b])
-                  break
+          dst=Path('release-tools/alpha-11.2.0/runtime-summary.txt')
+          dst.parent.mkdir(parents=True,exist_ok=True)
+          chunks=[]
+          specs={
+            'wam-campaign.js':[r'const\s+LEVELS',r'LEVELS\s*=',r'id\s*:\s*1\b',r'targets',r'moves'],
+            'wam-ui.js':[r'class\s+GameView',r'GameView\s*=',r'constructor\s*\(',r'wam-board',r'wam-hud'],
+            'wam-engine.js':[r'class\s+Game',r'Game\s*=',r'constructor\s*\(',r'rows',r'cols',r'board']
+          }
+          for f,pats in specs.items():
+            s=Path('out/'+f).read_text(errors='replace')
+            chunks.append('\n===== '+f+' =====\n')
+            seen=[]
+            for pat in pats:
+              m=re.search(pat,s,re.I)
+              if not m: continue
+              a=max(0,m.start()-1400); b=min(len(s),m.start()+7000)
+              rng=(a,b)
+              if any(a>=x and b<=y for x,y in seen): continue
+              seen.append(rng)
+              chunks.append(f'\n--- {pat} ---\n'+s[a:b]+'\n')
+          dst.write_text(''.join(chunks))
           PY
+          git config user.name BluStudio
+          git config user.email bigmacblu@gmail.com
+          git add release-tools/alpha-11.2.0/runtime-summary.txt
+          git commit -m 'Record 11.1.5 Level 1 runtime hooks for 11.2 prototype' || exit 0
+          git push
 
       - uses: actions/upload-artifact@v4
         with:
