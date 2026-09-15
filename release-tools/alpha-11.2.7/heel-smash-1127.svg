@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 150">
+  <defs>
+    <radialGradient id="burst" cx="50%" cy="50%" r="58%">
+      <stop offset="0" stop-color="#fff6bf"/>
+      <stop offset=".33" stop-color="#ffd24a"/>
+      <stop offset=".58" stop-color="#ff8a23"/>
+      <stop offset=".78" stop-color="#ff375f"/>
+      <stop offset="1" stop-color="#5d0839" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="shoe" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffc84f"/>
+      <stop offset=".42" stop-color="#f69a26"/>
+      <stop offset="1" stop-color="#d76313"/>
+    </linearGradient>
+    <linearGradient id="lining" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffe8d7"/>
+      <stop offset="1" stop-color="#c9774f"/>
+    </linearGradient>
+    <filter id="shadow" x="-35%" y="-35%" width="170%" height="175%">
+      <feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#18030d" flood-opacity=".86"/>
+    </filter>
+  </defs>
+
+  <g opacity=".98">
+    <circle cx="90" cy="74" r="59" fill="#2d0829"/>
+    <circle cx="90" cy="74" r="53" fill="url(#burst)"/>
+    <g fill="#fff4a6">
+      <path d="M90 13l4 12 12 4-12 4-4 12-4-12-12-4 12-4z"/>
+      <path d="M32 58l3 8 8 3-8 3-3 8-3-8-8-3 8-3z"/>
+      <path d="M145 42l3 8 8 3-8 3-3 8-3-8-8-3 8-3z"/>
+    </g>
+  </g>
+
+  <g filter="url(#shadow)">
+    <!-- slim stiletto heel -->
+    <path d="M57 96 L48 136 L58 136 L68 99 Z" fill="#2a120d" stroke="#120706" stroke-width="2.5"/>
+
+    <!-- main classic side-profile pump -->
+    <path d="M62 25
+             C72 18 84 20 91 27
+             C101 37 101 51 97 63
+             C93 76 91 84 99 90
+             C107 96 120 96 133 99
+             C145 101 155 104 160 109
+             C164 113 161 118 156 121
+             C143 129 121 134 95 134
+             L65 134
+             C54 134 47 131 45 126
+             C43 121 48 116 56 113
+             L77 105
+             C84 102 86 97 84 89
+             C81 75 74 61 66 48
+             C60 39 56 30 62 25 Z"
+          fill="url(#shoe)" stroke="#2d0d08" stroke-width="4" stroke-linejoin="round"/>
+
+    <!-- elegant cut-out / foot opening -->
+    <path d="M73 30
+             C82 27 89 31 93 39
+             C98 49 94 62 89 74
+             C86 82 87 90 93 96
+             C84 97 76 98 68 101
+             C70 92 69 82 66 72
+             C63 60 58 49 57 42
+             C60 37 65 33 73 30 Z"
+          fill="url(#lining)" stroke="#71351f" stroke-width="2.5"/>
+
+    <!-- dark sole line -->
+    <path d="M50 123 C72 129 112 128 153 111" fill="none" stroke="#38110b" stroke-width="4" stroke-linecap="round"/>
+
+    <!-- leopard spots -->
+    <g fill="#17100d" stroke="#ffcb36" stroke-width="1.4">
+      <ellipse cx="75" cy="46" rx="6.5" ry="5.2" transform="rotate(-22 75 46)"/>
+      <ellipse cx="87" cy="61" rx="5.8" ry="7" transform="rotate(16 87 61)"/>
+      <ellipse cx="72" cy="73" rx="5.4" ry="6.8" transform="rotate(-18 72 73)"/>
+      <ellipse cx="88" cy="88" rx="6.2" ry="5" transform="rotate(22 88 88)"/>
+      <ellipse cx="106" cy="101" rx="6.8" ry="5.3" transform="rotate(-8 106 101)"/>
+      <ellipse cx="125" cy="106" rx="5.8" ry="4.6" transform="rotate(18 125 106)"/>
+      <ellipse cx="143" cy="111" rx="5.5" ry="4.2"/>
+      <ellipse cx="74" cy="111" rx="5.2" ry="6.2" transform="rotate(18 74 111)"/>
+      <ellipse cx="92" cy="117" rx="5.8" ry="4.8" transform="rotate(-16 92 117)"/>
+      <ellipse cx="56" cy="120" rx="4.8" ry="4.1"/>
+    </g>
+
+    <!-- glossy highlights -->
+    <path d="M69 31 C76 26 84 27 88 32" fill="none" stroke="#fff3bf" stroke-width="3.2" stroke-linecap="round" opacity=".9"/>
+    <path d="M99 98 C117 103 137 103 151 109" fill="none" stroke="#ffd77d" stroke-width="2.6" stroke-linecap="round" opacity=".65"/>
+  </g>
+</svg>
