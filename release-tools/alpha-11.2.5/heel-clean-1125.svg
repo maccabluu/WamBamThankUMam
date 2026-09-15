@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 180">
+  <defs>
+    <linearGradient id="shoe" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffbf45"/>
+      <stop offset="0.45" stop-color="#e78817"/>
+      <stop offset="1" stop-color="#9d4e06"/>
+    </linearGradient>
+    <linearGradient id="sole" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#43100d"/>
+      <stop offset="1" stop-color="#160305"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="4" stdDeviation="3" flood-color="#16000d" flood-opacity="0.75"/>
+    </filter>
+  </defs>
+  <g filter="url(#glow)">
+    <!-- classic high-heel upper -->
+    <path d="M35 126 C61 111 83 89 98 56 C108 35 119 22 139 18 C149 17 158 24 159 34 C161 52 149 71 136 85 C127 95 122 104 125 111 C130 123 155 130 184 131 L189 147 C146 153 99 151 60 145 C45 143 35 136 35 126 Z" fill="url(#shoe)" stroke="#54130e" stroke-width="6" stroke-linejoin="round"/>
+    <!-- pointed toe -->
+    <path d="M35 126 C24 134 20 143 30 149 C47 159 88 158 124 153 L118 139 C87 142 57 138 35 126 Z" fill="#c56e0d" stroke="#54130e" stroke-width="5"/>
+    <!-- sole -->
+    <path d="M29 149 C73 161 133 158 190 147" fill="none" stroke="url(#sole)" stroke-width="8" stroke-linecap="round"/>
+    <!-- stiletto heel -->
+    <path d="M151 126 L174 128 L169 165 C168 174 158 177 154 168 Z" fill="#3b0a0b" stroke="#190305" stroke-width="4"/>
+    <path d="M155 166 L171 166" stroke="#f1a930" stroke-width="4" stroke-linecap="round"/>
+    <!-- inner cutout -->
+    <path d="M108 63 C117 43 128 32 142 30 C148 29 151 33 150 40 C148 53 137 70 126 81 C118 89 111 96 107 104 C101 95 101 79 108 63 Z" fill="#32111a"/>
+    <!-- leopard spots -->
+    <g fill="#241014" opacity="0.95">
+      <ellipse cx="72" cy="118" rx="8" ry="6" transform="rotate(-20 72 118)"/>
+      <ellipse cx="91" cy="103" rx="6" ry="9" transform="rotate(25 91 103)"/>
+      <ellipse cx="108" cy="84" rx="7" ry="5" transform="rotate(-15 108 84)"/>
+      <ellipse cx="120" cy="55" rx="6" ry="8" transform="rotate(20 120 55)"/>
+      <ellipse cx="137" cy="43" rx="5" ry="7" transform="rotate(-18 137 43)"/>
+      <ellipse cx="51" cy="135" rx="7" ry="5"/>
+      <ellipse cx="103" cy="128" rx="8" ry="5" transform="rotate(18 103 128)"/>
+      <ellipse cx="134" cy="135" rx="6" ry="5"/>
+      <ellipse cx="158" cy="139" rx="7" ry="4"/>
+    </g>
+    <!-- highlights -->
+    <path d="M47 124 C72 108 91 83 103 55 C113 33 129 25 144 24" fill="none" stroke="#ffe49a" stroke-width="5" stroke-linecap="round" opacity="0.75"/>
+  </g>
+</svg>
