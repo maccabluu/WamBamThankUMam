@@ -1,0 +1,149 @@
+name: Wam Bam Alpha 11.2.7 Heel + 9 Column Board
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/alpha-11-2-7.yml'
+      - 'release-tools/alpha-11.2.7/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wam-11-2-7-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Verify patch source and Android SDK
+        run: |
+          set -euo pipefail
+          test -f release-tools/alpha-11.2.7/prepare.py
+          test -f release-tools/alpha-11.2.7/gameplay-1127.js
+          test -f release-tools/alpha-11.2.7/heel-smash-1127.svg
+          node --check release-tools/alpha-11.2.7/gameplay-1127.js
+          grep -Fq '<svg' release-tools/alpha-11.2.7/heel-smash-1127.svg
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -perm -111 | head -n1 || true)"; fi
+          test -x "$SDKMANAGER"
+          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
+
+      - name: Download exact signed 11.2.6 production base
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o base.apk https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.2.6/WamBam_Alpha_11.2.6_HUD_Polish.apk
+          echo 'fbd5d19debcb76b4c1aa9eeef4f83864b11b6367f5d7fbf4c7ad38dfe5facc8e  base.apk' | sha256sum -c -
+          curl -fL --retry 3 -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          java -jar apktool.jar d -f base.apk -o work
+          test -f work/assets/www/gameplay-1126.js
+
+      - name: Apply 11.2.7 heel and board update
+        run: |
+          set -euo pipefail
+          python3 release-tools/alpha-11.2.7/prepare.py work/assets/www
+
+      - name: Verify visual and board patch
+        run: |
+          set -euo pipefail
+          node --check work/assets/www/gameplay-1127.js
+          grep -Fq '<script src="gameplay-1127.js"></script>' work/assets/www/index.html
+          grep -Fq "square:['#########','#########','#########','#########','#########','#########','#########','#########']" work/assets/www/wam-campaign.js
+          grep -Fq "width:630px" work/assets/www/gameplay-1127.js
+          test -f work/assets/www/icons/heel-smash-1126.svg
+          grep -Fq '<svg' work/assets/www/icons/heel-smash-1126.svg
+
+      - name: Set Android release version
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('work/apktool.yml')
+          s=p.read_text()
+          s,n=re.subn(r'(?m)^(\s*versionCode:\s*).+$',r'\g<1>112007',s,count=1)
+          s,m=re.subn(r'(?m)^(\s*versionName:\s*).+$',r'\g<1>11.2.7',s,count=1)
+          assert n==m==1
+          p.write_text(s)
+          PY
+
+      - name: Build production APK
+        run: |
+          set -euo pipefail
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'build-tools;35.0.0'
+          java -jar apktool.jar b work -o WamBam-11.2.7-unsigned.apk
+
+      - name: Sign with permanent Wam Bam identity and verify
+        env:
+          WB_KEYSTORE_B64: ${{ secrets.WB_KEYSTORE_B64 }}
+          WB_KEYSTORE_PASSWORD: ${{ secrets.WB_KEYSTORE_PASSWORD }}
+          WB_KEY_ALIAS: ${{ secrets.WB_KEY_ALIAS }}
+          WB_KEY_PASSWORD: ${{ secrets.WB_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for value in WB_KEYSTORE_B64 WB_KEYSTORE_PASSWORD WB_KEY_ALIAS WB_KEY_PASSWORD; do test -n "${!value:-}" || exit 1; done
+          printf '%s' "$WB_KEYSTORE_B64" | base64 -d > release.keystore
+          trap 'rm -f release.keystore' EXIT
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/zipalign" -f 4 WamBam-11.2.7-unsigned.apk aligned.apk
+          "$BT/apksigner" sign --ks release.keystore --ks-pass env:WB_KEYSTORE_PASSWORD --ks-key-alias "$WB_KEY_ALIAS" --key-pass env:WB_KEY_PASSWORD --out WamBam_Alpha_11.2.7_Heel_9_Column_Board.apk aligned.apk
+          "$BT/apksigner" verify --verbose --print-certs WamBam_Alpha_11.2.7_Heel_9_Column_Board.apk > signature.txt
+          "$BT/apksigner" verify --print-certs base.apk > base-signature.txt
+          NEW="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' signature.txt)"
+          BASE="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' base-signature.txt)"
+          test "$NEW" = 'd04c069c47d1642c83243de681e62bfd1a5c996816ab0c7b15dea82a91338ad1'
+          test "$NEW" = "$BASE"
+          "$BT/aapt" dump badging WamBam_Alpha_11.2.7_Heel_9_Column_Board.apk > package.txt
+          grep -q "package: name='com.macca.wambamthankumam' versionCode='112007' versionName='11.2.7'" package.txt
+          sha256sum WamBam_Alpha_11.2.7_Heel_9_Column_Board.apk > SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WamBam-Alpha-11.2.7-Heel-9-Column-Board
+          path: |
+            WamBam_Alpha_11.2.7_Heel_9_Column_Board.apk
+            SHA256SUMS.txt
+            signature.txt
+            base-signature.txt
+            package.txt
+          retention-days: 30
+
+      - name: Publish Alpha 11.2.7
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v11.2.7
+          name: Wam Bam Alpha 11.2.7 - Heel + 9 Column Board
+          prerelease: true
+          body: |
+            BlueStacks-driven Level 1 update.
+
+            Changes:
+            - Rebuilds Heel Smash as a cleaner transparent leopard-print stiletto closer to the supplied reference.
+            - Extends Level 1 by one full column on the RIGHT: 8 rows x 9 columns.
+            - Expands the board from 560px to 630px wide so the new column keeps the same tile size instead of squeezing the pieces smaller.
+            - Keeps the board underneath the girl's head, the 11.2.6 GOALS/MOVES cards, 3-star LEVEL 1 progress meter and lowered booster tray.
+            - Real match-3 engine, saves and campaign progression retained.
+
+            Identity checks:
+            - Package: com.macca.wambamthankumam
+            - Android versionCode: 112007
+            - Version: 11.2.7
+            - Permanent signing certificate unchanged.
+
+            CI verifies build, package, signature and 9-column board definition. BlueStacks runtime still needs user confirmation.
+          files: |
+            WamBam_Alpha_11.2.7_Heel_9_Column_Board.apk
+            SHA256SUMS.txt
