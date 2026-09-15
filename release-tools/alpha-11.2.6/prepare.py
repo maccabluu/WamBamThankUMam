@@ -1,0 +1,31 @@
+from pathlib import Path
+import shutil
+import sys
+
+root = Path(sys.argv[1])
+tools = Path(__file__).resolve().parent
+
+for name in ['gameplay-1126.js', 'heel-smash-1126.svg']:
+    src = tools / name
+    assert src.exists(), f'{name} missing'
+    if name.endswith('.svg'):
+        dst = root / 'icons' / name
+        dst.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        dst = root / name
+    shutil.copyfile(src, dst)
+
+index = root / 'index.html'
+html = index.read_text()
+assert 'gameplay-1125.js' in html, '11.2.5 production base not detected'
+assert 'gameplay-1126.js' not in html, '11.2.6 already injected'
+html = html.replace('</body>', '  <script src="gameplay-1126.js"></script>\n</body>', 1)
+index.write_text(html)
+
+for name in ['wam-campaign.js', 'data.js', 'code3.js']:
+    p = root / name
+    if p.exists():
+        p.write_text(p.read_text().replace('11.2.5', '11.2.6'))
+
+assert '<script src="gameplay-1126.js"></script>' in index.read_text()
+print('Applied Alpha 11.2.6: reference-inspired Goals/Moves cards and new Heel Smash art.')
