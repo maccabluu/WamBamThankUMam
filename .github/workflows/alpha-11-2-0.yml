@@ -27,15 +27,29 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Verify Android SDK and approved Level 1 artwork
+      - name: Verify Android SDK and approved Level 1 artwork data
         run: |
           set -euo pipefail
           test -n "${ANDROID_HOME:-}"
-          command -v sdkmanager
-          test -f release-tools/alpha-11.2.0/wambam-level1-bg.jpg
-          echo '3c55897aa5db6fc4f5373360cc151a3b298ebaf38c03727d841508aedd2e8a87  release-tools/alpha-11.2.0/wambam-level1-bg.jpg' | sha256sum -c -
-          test "$(wc -c < release-tools/alpha-11.2.0/wambam-level1-bg.jpg)" = '61783'
-          file release-tools/alpha-11.2.0/wambam-level1-bg.jpg | grep -q 'JPEG image data'
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -perm -111 | head -n1 || true)"
+          fi
+          test -n "$SDKMANAGER"
+          test -x "$SDKMANAGER"
+          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64, hashlib
+          d=Path('release-tools/alpha-11.2.0')
+          parts=[d/f'bg.b64.part{i:02d}' for i in range(5)]
+          assert all(p.exists() for p in parts), 'Level 1 background parts are incomplete'
+          raw=base64.b64decode(''.join(p.read_text().strip() for p in parts), validate=True)
+          assert len(raw)==61783, len(raw)
+          assert hashlib.sha256(raw).hexdigest()=='3c55897aa5db6fc4f5373360cc151a3b298ebaf38c03727d841508aedd2e8a87'
+          assert raw[:2]==b'\xff\xd8' and raw[-2:]==b'\xff\xd9'
+          print('Approved Level 1 artwork data verified:', len(raw))
+          PY
 
       - name: Download exact signed 11.1.5 production base
         run: |
@@ -82,8 +96,8 @@ jobs:
       - name: Build production APK
         run: |
           set -euo pipefail
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager 'build-tools;35.0.0'
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'build-tools;35.0.0'
           java -jar apktool.jar b work -o WamBam-11.2.0-unsigned.apk
 
       - name: Sign with permanent Wam Bam identity and verify
