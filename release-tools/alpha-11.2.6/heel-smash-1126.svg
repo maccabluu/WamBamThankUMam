@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 150">
+  <defs>
+    <radialGradient id="burst" cx="50%" cy="50%" r="55%">
+      <stop offset="0" stop-color="#fff3a3"/>
+      <stop offset=".38" stop-color="#ffb52f"/>
+      <stop offset=".68" stop-color="#ff2f66"/>
+      <stop offset="1" stop-color="#6a073d" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="shoe" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#ffb24b"/>
+      <stop offset=".55" stop-color="#e87924"/>
+      <stop offset="1" stop-color="#b74a13"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#22010f" flood-opacity=".75"/>
+    </filter>
+  </defs>
+  <circle cx="90" cy="75" r="59" fill="#3a092f" opacity=".88"/>
+  <circle cx="90" cy="75" r="52" fill="url(#burst)" opacity=".95"/>
+  <g stroke="#fff3bb" stroke-width="2" opacity=".85">
+    <path d="M90 22v14M90 114v14M37 75h14M129 75h14"/>
+    <path d="M52 37l10 10M118 103l10 10M128 37l-10 10M62 103l-10 10"/>
+  </g>
+  <g filter="url(#shadow)">
+    <path d="M76 30c18 3 31 14 35 31 3 13 3 22 12 30 8 8 19 11 31 14 5 1 7 6 3 10-8 9-25 16-45 16-20 0-31-4-39-10-7-6-5-16 5-18 11-2 20-3 25-9 4-4 5-10 4-17-2-14-11-25-21-32-6-4-6-13 0-16 3-2 6-3 10-2z" fill="url(#shoe)" stroke="#35110a" stroke-width="4"/>
+    <path d="M69 112c-5 1-9 4-12 8l-4 18h8l8-22z" fill="#2a0b08"/>
+    <path d="M79 32c6 1 13 4 19 9-6 2-12 7-17 15-7-6-12-10-18-13 4-6 9-10 16-11z" fill="#ffd7b1" opacity=".96"/>
+    <g fill="#21100b">
+      <ellipse cx="83" cy="60" rx="6" ry="8" transform="rotate(-18 83 60)"/>
+      <ellipse cx="98" cy="72" rx="5" ry="7" transform="rotate(18 98 72)"/>
+      <ellipse cx="111" cy="92" rx="7" ry="5" transform="rotate(22 111 92)"/>
+      <ellipse cx="87" cy="95" rx="5" ry="7" transform="rotate(-25 87 95)"/>
+      <ellipse cx="131" cy="108" rx="6" ry="4"/>
+      <ellipse cx="69" cy="77" rx="5" ry="6"/>
+    </g>
+    <g fill="#ffcf49">
+      <ellipse cx="83" cy="60" rx="2.7" ry="3.6"/>
+      <ellipse cx="98" cy="72" rx="2.4" ry="3"/>
+      <ellipse cx="111" cy="92" rx="3.1" ry="2.2"/>
+      <ellipse cx="87" cy="95" rx="2.3" ry="3"/>
+      <ellipse cx="131" cy="108" rx="2.6" ry="1.8"/>
+      <ellipse cx="69" cy="77" rx="2.2" ry="2.8"/>
+    </g>
+  </g>
+</svg>
