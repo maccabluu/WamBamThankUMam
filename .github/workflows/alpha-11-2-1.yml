@@ -27,12 +27,20 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Verify patch source
+      - name: Verify patch source and Android SDK
         run: |
           set -euo pipefail
           test -f release-tools/alpha-11.2.1/gameplay-1121.js
           test -f release-tools/alpha-11.2.1/prepare.py
           node --check release-tools/alpha-11.2.1/gameplay-1121.js
+          test -n "${ANDROID_HOME:-}"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -perm -111 | head -n1 || true)"
+          fi
+          test -n "$SDKMANAGER"
+          test -x "$SDKMANAGER"
+          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
 
       - name: Download exact signed 11.2.0 production base
         run: |
@@ -77,7 +85,8 @@ jobs:
       - name: Build production APK
         run: |
           set -euo pipefail
-          sdkmanager 'build-tools;35.0.0'
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'build-tools;35.0.0'
           java -jar apktool.jar b work -o WamBam-11.2.1-unsigned.apk
 
       - name: Sign with permanent Wam Bam identity and verify
