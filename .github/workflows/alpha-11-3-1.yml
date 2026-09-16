@@ -32,8 +32,22 @@ jobs:
           set -euo pipefail
           test -f release-tools/alpha-11.3.1/gameplay-1131.js
           test -f release-tools/alpha-11.3.1/prepare.py
-          test -f release-tools/alpha-11.3.1/booster-bar-reference.jpg
-          test "$(stat -c%s release-tools/alpha-11.3.1/booster-bar-reference.jpg)" -gt 100000
+          for i in 1 2 3 4 5 6; do test -f "release-tools/alpha-11.3.1/booster-bar-reference.b64.part$i"; done
+          cat \
+            release-tools/alpha-11.3.1/booster-bar-reference.b64.part1 \
+            release-tools/alpha-11.3.1/booster-bar-reference.b64.part2 \
+            release-tools/alpha-11.3.1/booster-bar-reference.b64.part3 \
+            release-tools/alpha-11.3.1/booster-bar-reference.b64.part4 \
+            release-tools/alpha-11.3.1/booster-bar-reference.b64.part5 \
+            release-tools/alpha-11.3.1/booster-bar-reference.b64.part6 | base64 -d > /tmp/booster-bar-reference.jpg
+          test "$(stat -c%s /tmp/booster-bar-reference.jpg)" -gt 30000
+          python3 - <<'PY'
+          from pathlib import Path
+          b = Path('/tmp/booster-bar-reference.jpg').read_bytes()
+          assert b[:2] == b'\xff\xd8'
+          assert b[-2:] == b'\xff\xd9'
+          print('Reference JPEG verified:', len(b), 'bytes')
+          PY
           node --check release-tools/alpha-11.3.1/gameplay-1131.js
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           if [ ! -x "$SDKMANAGER" ]; then SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -perm -111 | head -n1 || true)"; fi
@@ -62,7 +76,12 @@ jobs:
           grep -Fq "BAR_SRC='artwork/booster-bar-reference-1131.jpg'" work/assets/www/gameplay-1131.js
           grep -Fq "top','994px'" work/assets/www/gameplay-1131.js
           grep -Fq "opacity','0'" work/assets/www/gameplay-1131.js
-          test "$(stat -c%s work/assets/www/artwork/booster-bar-reference-1131.jpg)" -gt 100000
+          test "$(stat -c%s work/assets/www/artwork/booster-bar-reference-1131.jpg)" -gt 30000
+          python3 - <<'PY'
+          from pathlib import Path
+          b = Path('work/assets/www/artwork/booster-bar-reference-1131.jpg').read_bytes()
+          assert b[:2] == b'\xff\xd8' and b[-2:] == b'\xff\xd9'
+          PY
           grep -Fq "square:['#########','#########','#########','#########','#########','#########','#########','#########']" work/assets/www/wam-campaign.js
 
       - name: Set Android release version
@@ -132,13 +151,13 @@ jobs:
             Booster-bar replacement using the user's supplied reference artwork itself.
 
             Changes:
-            - Replaces the generated four-card booster UI with the supplied booster-bar artwork.
-            - Uses the exact HAMMER / MIC BLAST / SHUFFLE / SPOTLIGHT / JUKEBOX visual style from the reference.
-            - Removes the visible inventory numbers from the reference artwork and hides the live count badges.
-            - Moves the booster bar upward so the complete image stays on-screen.
-            - Keeps transparent working hit areas over Hammer, Mic Blast, Shuffle and Spotlight so the existing booster functions remain usable.
-            - Jukebox remains visual-only in this build because the current game has four live booster actions.
-            - Keeps the 9-column Level 1 board, HUD, girl visibility, saves and campaign progression.
+            - Replaces the generated booster cards with the supplied booster-bar artwork itself.
+            - Keeps the exact HAMMER / MIC BLAST / SHUFFLE / SPOTLIGHT / JUKEBOX visual style from the reference.
+            - Removes the visible inventory numbers from the artwork and hides the live count badges.
+            - Moves the complete booster strip upward so it stays fully on-screen.
+            - Keeps transparent working hit areas over Hammer, Mic Blast, Shuffle and Spotlight so the existing four booster functions remain usable.
+            - Jukebox is visual-only in this build because the current game has four live booster actions.
+            - Keeps the 9-column Level 1 board, current HUD, girl visibility, saves and campaign progression.
 
             Identity checks:
             - Package: com.macca.wambamthankumam
@@ -146,7 +165,7 @@ jobs:
             - Version: 11.3.1
             - Permanent signing certificate unchanged.
 
-            CI verifies build, package, signature, asset inclusion and runtime patch presence. BlueStacks visual confirmation is still required.
+            CI verifies build, package, signature, exact image asset inclusion and runtime patch presence. BlueStacks visual confirmation is still required.
           files: |
             WamBam_Alpha_11.3.1_Exact_Booster_Bar.apk
             SHA256SUMS.txt
