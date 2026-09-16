@@ -1,0 +1,166 @@
+name: Wam Bam Alpha 11.3.4 Levels 2-9 Layout Polish
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/alpha-11-3-4.yml'
+      - 'release-tools/alpha-11.3.4/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wam-11-3-4-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Verify patch source and Android SDK
+        run: |
+          set -euo pipefail
+          test -f release-tools/alpha-11.3.4/gameplay-1134.js
+          test -f release-tools/alpha-11.3.4/prepare.py
+          node --check release-tools/alpha-11.3.4/gameplay-1134.js
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -perm -111 | head -n1 || true)"; fi
+          test -x "$SDKMANAGER"
+          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
+
+      - name: Download exact signed 11.3.3 production base
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o base.apk https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.3.3/WamBam_Alpha_11.3.3_Levels_2-9_Visual_Upgrade.apk
+          echo 'df03328e275c4d4c725e77f78adeb9fc546fe0c3c142a6436b4d7552c3324652  base.apk' | sha256sum -c -
+          curl -fL --retry 3 -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          java -jar apktool.jar d -f base.apk -o work
+          test -f work/assets/www/gameplay-1133.js
+          test -f work/assets/www/gameplay-1132.js
+          test -f work/assets/www/artwork/booster-bar-reference-1132.png
+          cp work/assets/www/wam-campaign.js campaign-before.js
+
+      - name: Apply Levels 2-9 layout polish
+        run: |
+          set -euo pipefail
+          python3 release-tools/alpha-11.3.4/prepare.py work/assets/www
+
+      - name: Verify UI-only patch and preserved gameplay
+        run: |
+          set -euo pipefail
+          node --check work/assets/www/gameplay-1134.js
+          grep -Fq '<script src="gameplay-1134.js"></script>' work/assets/www/index.html
+          grep -Fq 'const MIN_LEVEL=2;' work/assets/www/gameplay-1134.js
+          grep -Fq 'const MAX_LEVEL=9;' work/assets/www/gameplay-1134.js
+          grep -Fq 'ensureCounts' work/assets/www/gameplay-1134.js
+          grep -Fq 'fitGoals' work/assets/www/gameplay-1134.js
+          grep -Fq 'enlargeExistingBoard' work/assets/www/gameplay-1134.js
+          grep -Fq 'removeStrays' work/assets/www/gameplay-1134.js
+          cmp campaign-before.js work/assets/www/wam-campaign.js
+          test -f work/assets/www/artwork/booster-bar-reference-1132.png
+
+      - name: Set Android release version
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('work/apktool.yml')
+          s=p.read_text()
+          s,n=re.subn(r'(?m)^(\s*versionCode:\s*).+$',r'\g<1>113004',s,count=1)
+          s,m=re.subn(r'(?m)^(\s*versionName:\s*).+$',r'\g<1>11.3.4',s,count=1)
+          assert n==m==1
+          p.write_text(s)
+          PY
+
+      - name: Build production APK
+        run: |
+          set -euo pipefail
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'build-tools;35.0.0'
+          java -jar apktool.jar b work -o WamBam-11.3.4-unsigned.apk
+
+      - name: Sign with permanent Wam Bam identity and verify
+        env:
+          WB_KEYSTORE_B64: ${{ secrets.WB_KEYSTORE_B64 }}
+          WB_KEYSTORE_PASSWORD: ${{ secrets.WB_KEYSTORE_PASSWORD }}
+          WB_KEY_ALIAS: ${{ secrets.WB_KEY_ALIAS }}
+          WB_KEY_PASSWORD: ${{ secrets.WB_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for value in WB_KEYSTORE_B64 WB_KEYSTORE_PASSWORD WB_KEY_ALIAS WB_KEY_PASSWORD; do test -n "${!value:-}" || exit 1; done
+          printf '%s' "$WB_KEYSTORE_B64" | base64 -d > release.keystore
+          trap 'rm -f release.keystore' EXIT
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/zipalign" -f 4 WamBam-11.3.4-unsigned.apk aligned.apk
+          "$BT/apksigner" sign --ks release.keystore --ks-pass env:WB_KEYSTORE_PASSWORD --ks-key-alias "$WB_KEY_ALIAS" --key-pass env:WB_KEY_PASSWORD --out WamBam_Alpha_11.3.4_Levels_2-9_Layout_Polish.apk aligned.apk
+          "$BT/apksigner" verify --verbose --print-certs WamBam_Alpha_11.3.4_Levels_2-9_Layout_Polish.apk > signature.txt
+          "$BT/apksigner" verify --print-certs base.apk > base-signature.txt
+          NEW="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' signature.txt)"
+          BASE="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' base-signature.txt)"
+          test "$NEW" = 'd04c069c47d1642c83243de681e62bfd1a5c996816ab0c7b15dea82a91338ad1'
+          test "$NEW" = "$BASE"
+          "$BT/aapt" dump badging WamBam_Alpha_11.3.4_Levels_2-9_Layout_Polish.apk > package.txt
+          grep -q "package: name='com.macca.wambamthankumam' versionCode='113004' versionName='11.3.4'" package.txt
+          unzip -p WamBam_Alpha_11.3.4_Levels_2-9_Layout_Polish.apk assets/www/wam-campaign.js > campaign-packaged.js
+          cmp campaign-before.js campaign-packaged.js
+          unzip -p WamBam_Alpha_11.3.4_Levels_2-9_Layout_Polish.apk assets/www/gameplay-1134.js > packaged-gameplay.js
+          grep -Fq 'ensureCounts' packaged-gameplay.js
+          grep -Fq 'fitGoals' packaged-gameplay.js
+          grep -Fq 'enlargeExistingBoard' packaged-gameplay.js
+          unzip -p WamBam_Alpha_11.3.4_Levels_2-9_Layout_Polish.apk assets/www/index.html | grep -Fq '<script src="gameplay-1134.js"></script>'
+          sha256sum WamBam_Alpha_11.3.4_Levels_2-9_Layout_Polish.apk > SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WamBam-Alpha-11.3.4-Levels-2-9-Layout-Polish
+          path: |
+            WamBam_Alpha_11.3.4_Levels_2-9_Layout_Polish.apk
+            SHA256SUMS.txt
+            signature.txt
+            base-signature.txt
+            package.txt
+          retention-days: 30
+
+      - name: Publish Alpha 11.3.4
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v11.3.4
+          name: Wam Bam Alpha 11.3.4 - Levels 2-9 Layout Polish
+          prerelease: true
+          body: |
+            Polishes Levels 2-9 based on the BlueStacks Level 2 screenshot.
+
+            Changes:
+            - Restores visible live inventory numbers over Hammer, Mic Blast, Shuffle and Spotlight on the fixed booster artwork.
+            - Makes each existing Level 2-9 board visually larger by scaling its current board rather than replacing its geometry.
+            - Removes the stray magenta legacy booster/overlay shape at the bottom-right.
+            - Makes the GOALS panel dynamically grow and spaces target rows so 3-target and larger goal sets stay inside the cream panel.
+            - Keeps the Level 1 screen unchanged.
+
+            Preserved exactly:
+            - wam-campaign.js is byte-for-byte identical to signed 11.3.3.
+            - Level 2-9 board shapes, rows/columns, targets, move counts, blockers and gameplay definitions are unchanged.
+            - Saves and progression are retained.
+
+            Identity:
+            - Package: com.macca.wambamthankumam
+            - Android versionCode: 113004
+            - Version: 11.3.4
+            - Permanent signing certificate unchanged.
+
+            Build/package/signature/campaign invariants are verified in CI. BlueStacks visual confirmation is still required.
+          files: |
+            WamBam_Alpha_11.3.4_Levels_2-9_Layout_Polish.apk
+            SHA256SUMS.txt
