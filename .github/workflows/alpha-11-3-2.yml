@@ -1,0 +1,174 @@
+name: Wam Bam Alpha 11.3.2 Booster Asset Fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/alpha-11-3-2.yml'
+      - 'release-tools/alpha-11.3.2/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wam-11-3-2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Verify patch source and Android SDK
+        run: |
+          set -euo pipefail
+          test -f release-tools/alpha-11.3.2/gameplay-1132.js
+          test -f release-tools/alpha-11.3.2/prepare.py
+          test -f release-tools/alpha-11.3.2/verify_png.py
+          test -f release-tools/alpha-11.3.2/booster-bar-reference-1132.png
+          python3 release-tools/alpha-11.3.2/verify_png.py release-tools/alpha-11.3.2/booster-bar-reference-1132.png
+          echo '631962144a0a1b1b55bd33ee9957cf130f21baf3fff11270564babe9e687b360  release-tools/alpha-11.3.2/booster-bar-reference-1132.png' | sha256sum -c -
+          node --check release-tools/alpha-11.3.2/gameplay-1132.js
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -perm -111 | head -n1 || true)"; fi
+          test -x "$SDKMANAGER"
+          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
+
+      - name: Download real signed 11.3.1 production base
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o base.apk https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.3.1/WamBam_Alpha_11.3.1_Exact_Booster_Bar.apk
+          echo 'bb3bd06bb6f469474ad6519231dcd940d58df488ce94ac92b7913ac3d5ee75ab  base.apk' | sha256sum -c -
+          curl -fL --retry 3 -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          java -jar apktool.jar d -f base.apk -o work
+          test -f work/assets/www/gameplay-1131.js
+          test -f work/assets/www/artwork/booster-bar-reference-1131.jpg
+
+      - name: Apply 11.3.2 booster asset fix
+        run: |
+          set -euo pipefail
+          python3 release-tools/alpha-11.3.2/prepare.py work/assets/www
+
+      - name: Verify runtime patch before build
+        run: |
+          set -euo pipefail
+          node --check work/assets/www/gameplay-1132.js
+          grep -Fq '<script src="gameplay-1132.js"></script>' work/assets/www/index.html
+          grep -Fq "BAR_PATH='artwork/booster-bar-reference-1132.png'" work/assets/www/gameplay-1132.js
+          grep -Fq 'new URL(BAR_PATH,document.baseURI).href' work/assets/www/gameplay-1132.js
+          grep -Fq "top','994px'" work/assets/www/gameplay-1132.js
+          grep -Fq "width','690px'" work/assets/www/gameplay-1132.js
+          grep -Fq "height','171px'" work/assets/www/gameplay-1132.js
+          grep -Fq "opacity','0'" work/assets/www/gameplay-1132.js
+          cmp release-tools/alpha-11.3.2/booster-bar-reference-1132.png work/assets/www/artwork/booster-bar-reference-1132.png
+          python3 release-tools/alpha-11.3.2/verify_png.py work/assets/www/artwork/booster-bar-reference-1132.png
+          grep -Fq "square:['#########','#########','#########','#########','#########','#########','#########','#########']" work/assets/www/wam-campaign.js
+
+      - name: Set Android release version
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          path = Path('work/apktool.yml')
+          text = path.read_text()
+          text, codes = re.subn(r'(?m)^(\s*versionCode:\s*).+$', r'\g<1>113002', text, count=1)
+          text, names = re.subn(r'(?m)^(\s*versionName:\s*).+$', r'\g<1>11.3.2', text, count=1)
+          assert codes == names == 1
+          path.write_text(text)
+          PY
+
+      - name: Build production APK
+        run: |
+          set -euo pipefail
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'build-tools;35.0.0'
+          java -jar apktool.jar b work -o WamBam-11.3.2-unsigned.apk
+
+      - name: Sign with permanent Wam Bam identity and verify packaged runtime
+        env:
+          WB_KEYSTORE_B64: ${{ secrets.WB_KEYSTORE_B64 }}
+          WB_KEYSTORE_PASSWORD: ${{ secrets.WB_KEYSTORE_PASSWORD }}
+          WB_KEY_ALIAS: ${{ secrets.WB_KEY_ALIAS }}
+          WB_KEY_PASSWORD: ${{ secrets.WB_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for value in WB_KEYSTORE_B64 WB_KEYSTORE_PASSWORD WB_KEY_ALIAS WB_KEY_PASSWORD; do test -n "${!value:-}" || exit 1; done
+          printf '%s' "$WB_KEYSTORE_B64" | base64 -d > release.keystore
+          trap 'rm -f release.keystore' EXIT
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/zipalign" -f 4 WamBam-11.3.2-unsigned.apk aligned.apk
+          "$BT/apksigner" sign --ks release.keystore --ks-pass env:WB_KEYSTORE_PASSWORD --ks-key-alias "$WB_KEY_ALIAS" --key-pass env:WB_KEY_PASSWORD --out WamBam_Alpha_11.3.2_Booster_Asset_Fix.apk aligned.apk
+          "$BT/apksigner" verify --verbose --print-certs WamBam_Alpha_11.3.2_Booster_Asset_Fix.apk > signature.txt
+          "$BT/apksigner" verify --print-certs base.apk > base-signature.txt
+          NEW="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' signature.txt)"
+          BASE="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' base-signature.txt)"
+          test "$NEW" = 'd04c069c47d1642c83243de681e62bfd1a5c996816ab0c7b15dea82a91338ad1'
+          test "$NEW" = "$BASE"
+          "$BT/aapt" dump badging WamBam_Alpha_11.3.2_Booster_Asset_Fix.apk > package.txt
+          grep -q "package: name='com.macca.wambamthankumam' versionCode='113002' versionName='11.3.2'" package.txt
+          test "$(unzip -Z1 WamBam_Alpha_11.3.2_Booster_Asset_Fix.apk | grep -Fxc 'assets/www/artwork/booster-bar-reference-1132.png')" = 1
+          unzip -p WamBam_Alpha_11.3.2_Booster_Asset_Fix.apk assets/www/artwork/booster-bar-reference-1132.png > packaged-booster.png
+          cmp release-tools/alpha-11.3.2/booster-bar-reference-1132.png packaged-booster.png
+          python3 release-tools/alpha-11.3.2/verify_png.py packaged-booster.png
+          unzip -p WamBam_Alpha_11.3.2_Booster_Asset_Fix.apk assets/www/gameplay-1132.js > packaged-gameplay.js
+          grep -Fq "BAR_PATH='artwork/booster-bar-reference-1132.png'" packaged-gameplay.js
+          grep -Fq 'new URL(BAR_PATH,document.baseURI).href' packaged-gameplay.js
+          unzip -p WamBam_Alpha_11.3.2_Booster_Asset_Fix.apk assets/www/index.html | grep -Fq '<script src="gameplay-1132.js"></script>'
+          unzip -p WamBam_Alpha_11.3.2_Booster_Asset_Fix.apk assets/www/wam-campaign.js | grep -Fq "square:['#########','#########','#########','#########','#########','#########','#########','#########']"
+          sha256sum WamBam_Alpha_11.3.2_Booster_Asset_Fix.apk > SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WamBam-Alpha-11.3.2-Booster-Asset-Fix
+          path: |
+            WamBam_Alpha_11.3.2_Booster_Asset_Fix.apk
+            SHA256SUMS.txt
+            signature.txt
+            base-signature.txt
+            package.txt
+            packaged-booster.png
+          retention-days: 30
+
+      - name: Publish Alpha 11.3.2
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v11.3.2
+          name: Wam Bam Alpha 11.3.2 - Booster Asset Fix
+          prerelease: true
+          body: |
+            Fixes the missing booster strip in 11.3.1.
+
+            Exact cause:
+            - 11.3.1 packaged the artwork at the expected path, but the file was not a decodable JPEG. Its header/footer-only CI checks passed even though Android WebView could not decode it, so WebView displayed the `Wam Bam boosters` alt text.
+
+            Changes:
+            - Replaces the broken JPEG with a fully decoded and re-encoded 690x171 RGB PNG made from the supplied reference strip.
+            - Keeps the supplied HAMMER / MIC BLAST / SHUFFLE / SPOTLIGHT / JUKEBOX artwork, with the five visible inventory numbers removed.
+            - Resolves the runtime source against `document.baseURI` and uses the exact packaged path.
+            - Keeps the strip at 15px left / 994px top / 690x171 so it is fully inside the Level 1 stage.
+            - Keeps transparent working hit areas for the four existing booster actions; Jukebox remains visual-only.
+            - Preserves the current 9-column Level 1 board, HUD, girl visibility, saves and campaign progression by patching the real signed 11.3.1 production APK.
+
+            Verification:
+            - The PNG is fully decompressed and validated before build and again after extraction from the signed APK.
+            - The exact APK asset path and runtime URL construction are checked.
+            - Package and permanent signing certificate are unchanged.
+            - BlueStacks visual confirmation is still required; this release is not claimed runtime-perfect yet.
+
+            Identity:
+            - Package: com.macca.wambamthankumam
+            - Android versionCode: 113002
+            - Version: 11.3.2
+          files: |
+            WamBam_Alpha_11.3.2_Booster_Asset_Fix.apk
+            SHA256SUMS.txt
