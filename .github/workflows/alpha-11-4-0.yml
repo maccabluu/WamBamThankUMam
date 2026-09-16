@@ -1,0 +1,188 @@
+name: Wam Bam Alpha 11.4.0 Frankie Flash Boss
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/alpha-11-4-0.yml'
+      - 'release-tools/alpha-11.4.0/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wam-11-4-0-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Verify boss patch source and Android SDK
+        run: |
+          set -euo pipefail
+          test -f release-tools/alpha-11.4.0/gameplay-1140.js
+          test -f release-tools/alpha-11.4.0/prepare.py
+          test -f release-tools/alpha-11.4.0/frankie-bg.b64
+          node --check release-tools/alpha-11.4.0/gameplay-1140.js
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -perm -111 | head -n1 || true)"; fi
+          test -x "$SDKMANAGER"
+          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
+
+      - name: Download exact signed 11.3.8 production base
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o base.apk https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.3.8/WamBam_Alpha_11.3.8_Level1_Counts_Pause_Fix.apk
+          echo '4ce4ca2f935f2199ccf49f7b61602073834c5dc8f4a619e0805ff07f9a1412f6  base.apk' | sha256sum -c -
+          curl -fL --retry 3 -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          java -jar apktool.jar d -f base.apk -o work
+          test -f work/assets/www/gameplay-1138.js
+          test -f work/assets/www/artwork/booster-bar-reference-1132.png
+          cp work/assets/www/wam-campaign.js campaign-before.js
+
+      - name: Apply Frankie Flash Level 10 boss
+        run: |
+          set -euo pipefail
+          python3 release-tools/alpha-11.4.0/prepare.py work/assets/www
+
+      - name: Verify Level 10-only campaign change and boss assets
+        run: |
+          set -euo pipefail
+          node --check work/assets/www/gameplay-1140.js
+          grep -Fq '<script src="gameplay-1140.js"></script>' work/assets/www/index.html
+          grep -Fq "['Frankie Flash','arch',0,'ice',10,30]," work/assets/www/wam-campaign.js
+          test -f work/assets/www/artwork/frankie-level10-bg.jpg
+          test "$(wc -c < work/assets/www/artwork/frankie-level10-bg.jpg)" = '32896'
+          echo 'abe249e789711c3a802388b33f3639ff386da80f6aa033ab56c7eac40efe6d1d  work/assets/www/artwork/frankie-level10-bg.jpg' | sha256sum -c -
+          python3 - <<'PY'
+          from pathlib import Path
+          before=Path('campaign-before.js').read_text()
+          after=Path('work/assets/www/wam-campaign.js').read_text()
+          old="['Kiss & Tell','arch',0,'ice',10,27],"
+          new="['Frankie Flash','arch',0,'ice',10,30],"
+          assert before.count(old)==1
+          assert after.count(new)==1
+          assert after.replace(new,old,1)==before, 'Campaign changed outside Level 10 tuple'
+          print('Campaign verification: only Level 10 title/moves changed; Levels 1-9 and 11+ definitions preserved.')
+          PY
+          grep -Fq 'FRANKIE STOLE A MOVE' work/assets/www/gameplay-1140.js
+          grep -Fq 'BOSS HEALTH' work/assets/www/gameplay-1140.js
+          grep -Fq 'frankie-level10-bg.jpg' work/assets/www/gameplay-1140.js
+
+      - name: Set Android release version
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('work/apktool.yml')
+          s=p.read_text()
+          s,n=re.subn(r'(?m)^(\s*versionCode:\s*).+$',r'\g<1>114000',s,count=1)
+          s,m=re.subn(r'(?m)^(\s*versionName:\s*).+$',r'\g<1>11.4.0',s,count=1)
+          assert n==m==1
+          p.write_text(s)
+          PY
+
+      - name: Build production APK
+        run: |
+          set -euo pipefail
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'build-tools;35.0.0'
+          java -jar apktool.jar b work -o WamBam-11.4.0-unsigned.apk
+
+      - name: Sign with permanent Wam Bam identity and verify
+        env:
+          WB_KEYSTORE_B64: ${{ secrets.WB_KEYSTORE_B64 }}
+          WB_KEYSTORE_PASSWORD: ${{ secrets.WB_KEYSTORE_PASSWORD }}
+          WB_KEY_ALIAS: ${{ secrets.WB_KEY_ALIAS }}
+          WB_KEY_PASSWORD: ${{ secrets.WB_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for value in WB_KEYSTORE_B64 WB_KEYSTORE_PASSWORD WB_KEY_ALIAS WB_KEY_PASSWORD; do test -n "${!value:-}" || exit 1; done
+          printf '%s' "$WB_KEYSTORE_B64" | base64 -d > release.keystore
+          trap 'rm -f release.keystore' EXIT
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/zipalign" -f 4 WamBam-11.4.0-unsigned.apk aligned.apk
+          "$BT/apksigner" sign --ks release.keystore --ks-pass env:WB_KEYSTORE_PASSWORD --ks-key-alias "$WB_KEY_ALIAS" --key-pass env:WB_KEY_PASSWORD --out WamBam_Alpha_11.4.0_Frankie_Flash_Boss.apk aligned.apk
+          "$BT/apksigner" verify --verbose --print-certs WamBam_Alpha_11.4.0_Frankie_Flash_Boss.apk > signature.txt
+          "$BT/apksigner" verify --print-certs base.apk > base-signature.txt
+          NEW="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' signature.txt)"
+          BASE="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' base-signature.txt)"
+          test "$NEW" = 'd04c069c47d1642c83243de681e62bfd1a5c996816ab0c7b15dea82a91338ad1'
+          test "$NEW" = "$BASE"
+          "$BT/aapt" dump badging WamBam_Alpha_11.4.0_Frankie_Flash_Boss.apk > package.txt
+          grep -q "package: name='com.macca.wambamthankumam' versionCode='114000' versionName='11.4.0'" package.txt
+          unzip -p WamBam_Alpha_11.4.0_Frankie_Flash_Boss.apk assets/www/gameplay-1140.js > packaged-gameplay.js
+          node --check packaged-gameplay.js
+          grep -Fq 'FRANKIE STOLE A MOVE' packaged-gameplay.js
+          unzip -p WamBam_Alpha_11.4.0_Frankie_Flash_Boss.apk assets/www/artwork/frankie-level10-bg.jpg > packaged-bg.jpg
+          echo 'abe249e789711c3a802388b33f3639ff386da80f6aa033ab56c7eac40efe6d1d  packaged-bg.jpg' | sha256sum -c -
+          unzip -p WamBam_Alpha_11.4.0_Frankie_Flash_Boss.apk assets/www/wam-campaign.js > campaign-packaged.js
+          python3 - <<'PY'
+          from pathlib import Path
+          before=Path('campaign-before.js').read_text()
+          after=Path('campaign-packaged.js').read_text()
+          old="['Kiss & Tell','arch',0,'ice',10,27],"
+          new="['Frankie Flash','arch',0,'ice',10,30],"
+          assert after.replace(new,old,1)==before
+          PY
+          sha256sum WamBam_Alpha_11.4.0_Frankie_Flash_Boss.apk > SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WamBam-Alpha-11.4.0-Frankie-Flash-Boss
+          path: |
+            WamBam_Alpha_11.4.0_Frankie_Flash_Boss.apk
+            SHA256SUMS.txt
+            signature.txt
+            base-signature.txt
+            package.txt
+          retention-days: 30
+
+      - name: Publish Alpha 11.4.0
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v11.4.0
+          name: Wam Bam Alpha 11.4.0 - Frankie Flash Boss
+          prerelease: true
+          body: |
+            Level 10 is now the first Frankie Flash boss battle.
+
+            Level 10 changes:
+            - Uses the new Frankie Flash neon stage artwork made for the boss level.
+            - Renamed to FRANKIE FLASH and increased to 30 starting moves.
+            - New large FRANKIE FLASH boss-health HUD driven by the real Level 10 objective progress.
+            - Frankie reacts as his health falls.
+            - Every 5 successful player swaps Frankie attacks and steals one move.
+            - Keeps the real HINT and PAUSE controls.
+            - Uses the Wam Bam GOALS/MOVES presentation and the fixed Hammer / Mic Blast / Shuffle / Spotlight / Jukebox booster strip with inventory counts.
+            - Keeps Level 10's existing arch-shaped finale board, ice obstacles and real match-3 engine.
+            - Existing Wam World boss completion still handles the Frankie Flash defeated result and Level 10 reward/unlock flow.
+
+            Preserved:
+            - Levels 1-9 are unchanged from signed 11.3.8.
+            - Levels 11+ campaign definitions are unchanged.
+            - Only the Level 10 generated design tuple changes in wam-campaign.js.
+            - Saves/progression are retained.
+
+            Identity:
+            - Package: com.macca.wambamthankumam
+            - Android versionCode: 114000
+            - Version: 11.4.0
+            - Permanent signing certificate unchanged.
+
+            Build/package/signature/static asset checks are verified in CI. BlueStacks runtime confirmation is still required.
+          files: |
+            WamBam_Alpha_11.4.0_Frankie_Flash_Boss.apk
+            SHA256SUMS.txt
