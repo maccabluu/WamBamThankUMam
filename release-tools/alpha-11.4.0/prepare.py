@@ -1,0 +1,55 @@
+from pathlib import Path
+import base64
+import hashlib
+import shutil
+import sys
+
+root = Path(sys.argv[1])
+tools = Path(__file__).resolve().parent
+
+src = tools / 'gameplay-1140.js'
+payload = tools / 'frankie-bg.b64'
+assert src.exists(), 'gameplay-1140.js missing'
+assert payload.exists(), 'Frankie background payload missing'
+assert (root / 'gameplay-1138.js').exists(), '11.3.8 production base missing gameplay-1138.js'
+assert (root / 'artwork' / 'booster-bar-reference-1132.png').exists(), 'booster strip missing'
+assert (root / 'wam-campaign.js').exists(), 'campaign missing'
+
+# Rebuild the approved Frankie Flash artwork and verify it byte-for-byte.
+raw = base64.b64decode(''.join(payload.read_text().split()), validate=True)
+assert len(raw) == 32896, f'Frankie background size mismatch: {len(raw)}'
+sha = hashlib.sha256(raw).hexdigest()
+assert sha == 'abe249e789711c3a802388b33f3639ff386da80f6aa033ab56c7eac40efe6d1d', sha
+assert raw[:3] == b'\xff\xd8\xff', 'Frankie background is not JPEG'
+art = root / 'artwork' / 'frankie-level10-bg.jpg'
+art.write_bytes(raw)
+
+# Change only the Level 10 generated design tuple: title and 30 moves.
+campaign = root / 'wam-campaign.js'
+before = campaign.read_text()
+old = "['Kiss & Tell','arch',0,'ice',10,27],"
+new = "['Frankie Flash','arch',0,'ice',10,30],"
+assert before.count(old) == 1, 'Level 10 source tuple not found exactly once'
+after = before.replace(old, new, 1)
+assert after.replace(new, old, 1) == before, 'Unexpected campaign mutation'
+campaign.write_text(after)
+
+# Add the Level 10 boss runtime after all existing 11.3.x fixes.
+shutil.copyfile(src, root / 'gameplay-1140.js')
+index = root / 'index.html'
+html = index.read_text()
+assert 'gameplay-1138.js' in html, '11.3.8 script hook missing'
+assert 'gameplay-1140.js' not in html, '11.4.0 already injected'
+html = html.replace('</body>', '  <script src="gameplay-1140.js"></script>\n</body>', 1)
+index.write_text(html)
+
+for name in ['data.js', 'code3.js']:
+    p = root / name
+    if p.exists():
+        p.write_text(p.read_text().replace('11.3.8', '11.4.0'))
+
+patched = (root / 'gameplay-1140.js').read_text()
+for needle in ['FRANKIE FLASH', 'BOSS HEALTH', 'FRANKIE STOLE A MOVE', 'frankie-level10-bg.jpg', 'wam1140-health-fill']:
+    assert needle in patched, needle
+assert 'gameplay-1140.js' in index.read_text()
+print('Applied Alpha 11.4.0: Frankie Flash Level 10 boss with approved stage artwork, 30 moves, boss health HUD and boss attacks.')
