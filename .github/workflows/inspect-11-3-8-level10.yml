@@ -26,14 +26,9 @@ jobs:
           unzip -p base.apk assets/www/wam-campaign.js > campaign.js
           unzip -p base.apk assets/www/wam-ui.js > ui.js
           unzip -p base.apk assets/www/wam-engine.js > engine.js
-          echo '=== LEVEL 10 ==='
-          grep -o ".\{0,500\}id:10,.\{0,900\}" campaign.js | head -n 1 || true
-          echo '=== EARLY SHAPES ==='
-          grep -o "const earlyShapes[^;]*;" campaign.js | head -n 1 || true
-          echo '=== SHAPES ==='
-          grep -n "const SHAPES" campaign.js | head -n 1 || true
-          echo '=== GAME METHODS ==='
-          grep -o "class Game[^}]*" engine.js | head -c 8000 || true
-          echo
-          echo '=== UI METHODS / PAUSE / SWAP / END ==='
-          grep -nE "class GameView|render\(|pause\(|swap|beforeGame|end\(" ui.js | head -n 120 || true
+          echo '=== LEVEL 10 GENERATION ==='
+          grep -nE "Kiss & Tell|designs\.forEach|levels\.push|id:[[:space:]]*10" campaign.js | head -n 80 || true
+          echo '=== ENGINE 1-330 ==='
+          sed -n '1,330p' engine.js
+          echo '=== UI 90-290 ==='
+          sed -n '90,290p' ui.js
