@@ -1,0 +1,49 @@
+name: Inspect Wam Bam 11.3.6 Hint Runtime
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-hint-11-3-6.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and decode signed 11.3.6
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o base.apk https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.3.6/WamBam_Alpha_11.3.6_Exact_Booster_Count_Fix.apk
+          echo 'efc9425f7e2e2b590de5e2c1fa161a4adefc7a3c47655c6ff76d0824a84a4773  base.apk' | sha256sum -c -
+          curl -fL --retry 3 -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          java -jar apktool.jar d -f base.apk -o work >/dev/null
+      - name: Print hint implementation
+        run: |
+          set -euo pipefail
+          echo '=== HINT matches ==='
+          grep -RniE 'hint|HINT|wam-board-title' work/assets/www --include='*.js' --include='*.html' | head -n 120 || true
+          echo '=== GameView hint context in wam-ui.js ==='
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('work/assets/www/wam-ui.js')
+          if not p.exists():
+              print('wam-ui.js missing')
+              raise SystemExit
+          s=p.read_text(errors='replace')
+          low=s.lower()
+          for needle in ['hint','wam-board-title']:
+              start=0
+              print('\n---',needle,'---')
+              while True:
+                  i=low.find(needle,start)
+                  if i<0: break
+                  print(s[max(0,i-900):min(len(s),i+1800)])
+                  print('\n-----')
+                  start=i+len(needle)
+          PY
