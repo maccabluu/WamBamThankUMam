@@ -32,7 +32,9 @@ jobs:
           set -euo pipefail
           test -f release-tools/alpha-11.4.0/gameplay-1140.js
           test -f release-tools/alpha-11.4.0/prepare.py
-          test -f release-tools/alpha-11.4.0/frankie-bg.b64
+          test -f release-tools/alpha-11.4.0/frankie-bg.b64.part00
+          test -f release-tools/alpha-11.4.0/frankie-bg.b64.part01
+          test -f release-tools/alpha-11.4.0/frankie-bg.b64.part02
           node --check release-tools/alpha-11.4.0/gameplay-1140.js
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           if [ ! -x "$SDKMANAGER" ]; then SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -perm -111 | head -n1 || true)"; fi
@@ -62,8 +64,8 @@ jobs:
           grep -Fq '<script src="gameplay-1140.js"></script>' work/assets/www/index.html
           grep -Fq "['Frankie Flash','arch',0,'ice',10,30]," work/assets/www/wam-campaign.js
           test -f work/assets/www/artwork/frankie-level10-bg.jpg
-          test "$(wc -c < work/assets/www/artwork/frankie-level10-bg.jpg)" = '32896'
-          echo 'abe249e789711c3a802388b33f3639ff386da80f6aa033ab56c7eac40efe6d1d  work/assets/www/artwork/frankie-level10-bg.jpg' | sha256sum -c -
+          test "$(wc -c < work/assets/www/artwork/frankie-level10-bg.jpg)" = '18665'
+          echo '5146fd1f4aac4fea7922c7c5b3080e59c03c2724eb9473a2e5cfc7841037efad  work/assets/www/artwork/frankie-level10-bg.jpg' | sha256sum -c -
           python3 - <<'PY'
           from pathlib import Path
           before=Path('campaign-before.js').read_text()
@@ -126,7 +128,7 @@ jobs:
           node --check packaged-gameplay.js
           grep -Fq 'FRANKIE STOLE A MOVE' packaged-gameplay.js
           unzip -p WamBam_Alpha_11.4.0_Frankie_Flash_Boss.apk assets/www/artwork/frankie-level10-bg.jpg > packaged-bg.jpg
-          echo 'abe249e789711c3a802388b33f3639ff386da80f6aa033ab56c7eac40efe6d1d  packaged-bg.jpg' | sha256sum -c -
+          echo '5146fd1f4aac4fea7922c7c5b3080e59c03c2724eb9473a2e5cfc7841037efad  packaged-bg.jpg' | sha256sum -c -
           unzip -p WamBam_Alpha_11.4.0_Frankie_Flash_Boss.apk assets/www/wam-campaign.js > campaign-packaged.js
           python3 - <<'PY'
           from pathlib import Path
