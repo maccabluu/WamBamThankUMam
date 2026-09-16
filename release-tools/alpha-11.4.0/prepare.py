@@ -8,18 +8,19 @@ root = Path(sys.argv[1])
 tools = Path(__file__).resolve().parent
 
 src = tools / 'gameplay-1140.js'
-payload = tools / 'frankie-bg.b64'
+parts = [tools / f'frankie-bg.b64.part{i:02d}' for i in range(3)]
 assert src.exists(), 'gameplay-1140.js missing'
-assert payload.exists(), 'Frankie background payload missing'
+assert all(p.exists() for p in parts), 'Frankie background payload part missing'
 assert (root / 'gameplay-1138.js').exists(), '11.3.8 production base missing gameplay-1138.js'
 assert (root / 'artwork' / 'booster-bar-reference-1132.png').exists(), 'booster strip missing'
 assert (root / 'wam-campaign.js').exists(), 'campaign missing'
 
-# Rebuild the approved Frankie Flash artwork and verify it byte-for-byte.
-raw = base64.b64decode(''.join(payload.read_text().split()), validate=True)
-assert len(raw) == 32896, f'Frankie background size mismatch: {len(raw)}'
+# Rebuild the approved Frankie Flash artwork from verified payload chunks.
+encoded = ''.join(''.join(p.read_text().split()) for p in parts)
+raw = base64.b64decode(encoded, validate=True)
+assert len(raw) == 18665, f'Frankie background size mismatch: {len(raw)}'
 sha = hashlib.sha256(raw).hexdigest()
-assert sha == 'abe249e789711c3a802388b33f3639ff386da80f6aa033ab56c7eac40efe6d1d', sha
+assert sha == '5146fd1f4aac4fea7922c7c5b3080e59c03c2724eb9473a2e5cfc7841037efad', sha
 assert raw[:3] == b'\xff\xd8\xff', 'Frankie background is not JPEG'
 art = root / 'artwork' / 'frankie-level10-bg.jpg'
 art.write_bytes(raw)
