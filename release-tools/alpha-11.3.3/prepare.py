@@ -33,8 +33,9 @@ assert 'const MAX_LEVEL=9;' in patched
 assert "BG_PATH='artwork/wambam-level1-bg.jpg'" in patched
 assert "BAR_PATH='artwork/booster-bar-reference-1132.png'" in patched
 assert 'alignTitleToExistingBoard' in patched
-assert 'view.board.style.width' not in patched
-assert 'view.board.style.height' not in patched
+# Reading existing board geometry is allowed; assigning new board geometry is not.
+for forbidden in ["imp(view.board,'width'", "imp(view.board,'height'", "view.board.style.width=", "view.board.style.height=", "view.board.style.left=", "view.board.style.top="]:
+    assert forbidden not in patched, f'11.3.3 must not change board geometry: {forbidden}'
 assert 'gameplay-1133.js' in index.read_text()
 
 print('Applied Alpha 11.3.3: Level 1 presentation for Levels 2-9 while preserving campaign/board definitions exactly.')
