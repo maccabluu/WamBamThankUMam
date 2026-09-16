@@ -1,0 +1,39 @@
+name: Inspect Wam Bam 11.3.8 Level 10
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-11-3-8-level10.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download signed 11.3.8
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o base.apk https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.3.8/WamBam_Alpha_11.3.8_Level1_Counts_Pause_Fix.apk
+          echo '4ce4ca2f935f2199ccf49f7b61602073834c5dc8f4a619e0805ff07f9a1412f6  base.apk' | sha256sum -c -
+      - name: Inspect Level 10 campaign and engine APIs
+        run: |
+          set -euo pipefail
+          unzip -p base.apk assets/www/wam-campaign.js > campaign.js
+          unzip -p base.apk assets/www/wam-ui.js > ui.js
+          unzip -p base.apk assets/www/wam-engine.js > engine.js
+          echo '=== LEVEL 10 ==='
+          grep -o ".\{0,500\}id:10,.\{0,900\}" campaign.js | head -n 1 || true
+          echo '=== EARLY SHAPES ==='
+          grep -o "const earlyShapes[^;]*;" campaign.js | head -n 1 || true
+          echo '=== SHAPES ==='
+          grep -n "const SHAPES" campaign.js | head -n 1 || true
+          echo '=== GAME METHODS ==='
+          grep -o "class Game[^}]*" engine.js | head -c 8000 || true
+          echo
+          echo '=== UI METHODS / PAUSE / SWAP / END ==='
+          grep -nE "class GameView|render\(|pause\(|swap|beforeGame|end\(" ui.js | head -n 120 || true
