@@ -1,0 +1,242 @@
+name: Wam Bam Alpha 11.5.0 Frankie, Levels 11-100 and Boosters
+
+on:
+  push:
+    branches: [wam-11.5.0]
+    paths:
+      - '.github/workflows/alpha-11-5-0.yml'
+      - 'release-tools/alpha-11.5.0/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wam-11-5-0-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: wam-11.5.0
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Verify 11.5.0 sources
+        run: |
+          set -euo pipefail
+          test -f release-tools/alpha-11.5.0/prepare.py
+          test -f release-tools/alpha-11.5.0/gameplay-1150.js
+          test -f release-tools/alpha-11.5.0/frankie-level10-bg-1150.png
+          node --check release-tools/alpha-11.5.0/gameplay-1150.js
+          echo '427bd7ccf5de9fcae2c54bbf788391bff2246ef32f405134f2b9d321a0c92019  release-tools/alpha-11.5.0/frankie-level10-bg-1150.png' | sha256sum -c -
+          test "$(wc -c < release-tools/alpha-11.5.0/frankie-level10-bg-1150.png)" = '3391541'
+          python3 - <<'PY'
+          import struct
+          from pathlib import Path
+          b=Path('release-tools/alpha-11.5.0/frankie-level10-bg-1150.png').read_bytes()
+          assert b[:8] == b'\x89PNG\r\n\x1a\n'
+          assert struct.unpack('>II',b[16:24]) == (958,1642)
+          PY
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -perm -111 | head -n1 || true)"; fi
+          test -x "$SDKMANAGER"
+          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
+
+      - name: Download latest signed production lineage
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o base.apk https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.4.2/WamBam_Alpha_11.4.2_Level10_Visual_Hammer_Popup_Fix.apk
+          echo '8afd8d8fd9c309e461fc70cb5614f5385944a6439f233b4df1f0803835bfd7d8  base.apk' | sha256sum -c -
+          curl -fL --retry 3 -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          java -jar apktool.jar d -f base.apk -o work
+          test -f work/assets/www/gameplay-1140.js
+          test -f work/assets/www/gameplay-1142.js
+          test -f work/assets/www/wam-engine.js
+          test -f work/assets/www/wam-campaign.js
+          cp work/assets/www/wam-campaign.js campaign-before.js
+          cp work/assets/www/wam-engine.js engine-before.js
+          cp work/assets/www/gameplay-1140.js boss-before.js
+          cp work/assets/www/gameplay-1142.js visual-before.js
+
+      - name: Verify Level 10 production mechanics before visual patch
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs=require('fs'),vm=require('vm');
+          const ctx={window:{},console};vm.createContext(ctx);
+          vm.runInContext(fs.readFileSync('work/assets/www/wam-campaign.js','utf8'),ctx);
+          const C=ctx.window.WamCampaign;
+          if(!C)throw new Error('WamCampaign missing');
+          const l=C.level(10);
+          if(!l||l.moves!==30)throw new Error('Level 10 must remain 30 moves');
+          if(!l.mask||!Array.isArray(l.mask))throw new Error('Level 10 special board mask missing');
+          if(!(Number(l.targets?.ice)>0))throw new Error('Level 10 ice target missing');
+          if(C.TOTAL!==100)throw new Error('Campaign total changed');
+          console.log('Level 10:',l.id,l.name,l.moves,'mask rows',l.mask.length,'ice',l.targets.ice,'campaign total',C.TOTAL);
+          NODE
+          grep -Fq 'wam1140-health-fill' work/assets/www/gameplay-1140.js
+          grep -Fq 'BOSS ATTACK' work/assets/www/gameplay-1140.js
+          grep -Fq 'wam1140-reaction' work/assets/www/gameplay-1140.js
+
+      - name: Apply Level 10, Levels 11-100 and booster upgrade
+        run: |
+          set -euo pipefail
+          python3 release-tools/alpha-11.5.0/prepare.py work/assets/www
+
+      - name: Static regression checks before build
+        run: |
+          set -euo pipefail
+          cmp -s campaign-before.js work/assets/www/wam-campaign.js
+          cmp -s engine-before.js work/assets/www/wam-engine.js
+          cmp -s boss-before.js work/assets/www/gameplay-1140.js
+          cmp -s visual-before.js work/assets/www/gameplay-1142.js
+          node --check work/assets/www/gameplay-1150.js
+          grep -Fq '<script src="gameplay-1150.js"></script>' work/assets/www/index.html
+          grep -Fq "LEVEL10_BG='artwork/frankie-level10-bg-1150.png'" work/assets/www/gameplay-1150.js
+          grep -Fq 'STANDARD_MIN=11' work/assets/www/gameplay-1150.js
+          grep -Fq 'STANDARD_MAX=100' work/assets/www/gameplay-1150.js
+          grep -Fq "pause.textContent='Ⅱ'" release-tools/alpha-11.5.0/prepare.py
+          grep -Fq 'v.game.reshuffle()' work/assets/www/gameplay-1150.js
+          grep -Fq "label:'JUKEBOX JAM!'" work/assets/www/gameplay-1150.js
+          grep -Fq 'wam1150-hammer' work/assets/www/gameplay-1150.js
+          grep -Fq 'wam1150-mic' work/assets/www/gameplay-1150.js
+          grep -Fq 'wam1150-beam' work/assets/www/gameplay-1150.js
+          grep -Fq 'wam1150-shuffle' work/assets/www/gameplay-1150.js
+          grep -Fq 'wam1150-juke' work/assets/www/gameplay-1150.js
+          grep -Fq 'z-index:60000' work/assets/www/wam-ui.js
+          ! grep -Fq 'Heel Smash' work/assets/www/wam-ui.js
+          grep -Fq 'booster-hammer-1141.svg' work/assets/www/wam-ui.js
+          echo '427bd7ccf5de9fcae2c54bbf788391bff2246ef32f405134f2b9d321a0c92019  work/assets/www/artwork/frankie-level10-bg-1150.png' | sha256sum -c -
+
+      - name: Set Android version 11.5.0
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('work/apktool.yml')
+          s=p.read_text()
+          s,n=re.subn(r'(?m)^(\s*versionCode:\s*).+$',r'\g<1>115000',s,count=1)
+          s,m=re.subn(r'(?m)^(\s*versionName:\s*).+$',r'\g<1>11.5.0',s,count=1)
+          assert n==m==1
+          p.write_text(s)
+          PY
+
+      - name: Build production APK
+        run: |
+          set -euo pipefail
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'build-tools;35.0.0'
+          java -jar apktool.jar b work -o WamBam-11.5.0-unsigned.apk
+
+      - name: Sign permanently and inspect packaged APK
+        env:
+          WB_KEYSTORE_B64: ${{ secrets.WB_KEYSTORE_B64 }}
+          WB_KEYSTORE_PASSWORD: ${{ secrets.WB_KEYSTORE_PASSWORD }}
+          WB_KEY_ALIAS: ${{ secrets.WB_KEY_ALIAS }}
+          WB_KEY_PASSWORD: ${{ secrets.WB_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for value in WB_KEYSTORE_B64 WB_KEYSTORE_PASSWORD WB_KEY_ALIAS WB_KEY_PASSWORD; do test -n "${!value:-}" || exit 1; done
+          printf '%s' "$WB_KEYSTORE_B64" | base64 -d > release.keystore
+          trap 'rm -f release.keystore' EXIT
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/zipalign" -f 4 WamBam-11.5.0-unsigned.apk aligned.apk
+          "$BT/apksigner" sign --ks release.keystore --ks-pass env:WB_KEYSTORE_PASSWORD --ks-key-alias "$WB_KEY_ALIAS" --key-pass env:WB_KEY_PASSWORD --out WamBam_Alpha_11.5.0_Frankie_Levels11-100_Boosters.apk aligned.apk
+          "$BT/apksigner" verify --verbose --print-certs WamBam_Alpha_11.5.0_Frankie_Levels11-100_Boosters.apk > signature.txt
+          "$BT/apksigner" verify --print-certs base.apk > base-signature.txt
+          NEW="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' signature.txt)"
+          BASE="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' base-signature.txt)"
+          test "$NEW" = 'd04c069c47d1642c83243de681e62bfd1a5c996816ab0c7b15dea82a91338ad1'
+          test "$NEW" = "$BASE"
+          "$BT/aapt" dump badging WamBam_Alpha_11.5.0_Frankie_Levels11-100_Boosters.apk > package.txt
+          grep -q "package: name='com.macca.wambamthankumam' versionCode='115000' versionName='11.5.0'" package.txt
+          unzip -p WamBam_Alpha_11.5.0_Frankie_Levels11-100_Boosters.apk assets/www/wam-campaign.js > campaign-packaged.js
+          unzip -p WamBam_Alpha_11.5.0_Frankie_Levels11-100_Boosters.apk assets/www/wam-engine.js > engine-packaged.js
+          unzip -p WamBam_Alpha_11.5.0_Frankie_Levels11-100_Boosters.apk assets/www/gameplay-1140.js > boss-packaged.js
+          unzip -p WamBam_Alpha_11.5.0_Frankie_Levels11-100_Boosters.apk assets/www/gameplay-1150.js > gameplay-1150-packaged.js
+          cmp -s campaign-before.js campaign-packaged.js
+          cmp -s engine-before.js engine-packaged.js
+          cmp -s boss-before.js boss-packaged.js
+          node --check gameplay-1150-packaged.js
+          unzip -p WamBam_Alpha_11.5.0_Frankie_Levels11-100_Boosters.apk assets/www/artwork/frankie-level10-bg-1150.png > frankie-packaged.png
+          echo '427bd7ccf5de9fcae2c54bbf788391bff2246ef32f405134f2b9d321a0c92019  frankie-packaged.png' | sha256sum -c -
+          test "$(wc -c < frankie-packaged.png)" = '3391541'
+          python3 - <<'PY'
+          import struct
+          from pathlib import Path
+          b=Path('frankie-packaged.png').read_bytes()
+          assert struct.unpack('>II',b[16:24]) == (958,1642)
+          PY
+          unzip -p WamBam_Alpha_11.5.0_Frankie_Levels11-100_Boosters.apk assets/www/index.html > packaged-index.html
+          grep -Fq '<script src="gameplay-1150.js"></script>' packaged-index.html
+          grep -Fq "LEVEL10_BG='artwork/frankie-level10-bg-1150.png'" gameplay-1150-packaged.js
+          grep -Fq 'STANDARD_MIN=11' gameplay-1150-packaged.js
+          grep -Fq 'STANDARD_MAX=100' gameplay-1150-packaged.js
+          grep -Fq "C.BOOSTER_LABELS.hammer='Hammer'" gameplay-1150-packaged.js
+          grep -Fq "C.BOOSTER_LABELS.rocket='Mic Blast'" gameplay-1150-packaged.js
+          grep -Fq "C.BOOSTER_LABELS.swap='Shuffle'" gameplay-1150-packaged.js
+          grep -Fq "C.BOOSTER_LABELS.disco='Spotlight'" gameplay-1150-packaged.js
+          grep -Fq "label:'JUKEBOX JAM!'" gameplay-1150-packaged.js
+          sha256sum WamBam_Alpha_11.5.0_Frankie_Levels11-100_Boosters.apk > SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WamBam-Alpha-11.5.0-Production
+          path: |
+            WamBam_Alpha_11.5.0_Frankie_Levels11-100_Boosters.apk
+            SHA256SUMS.txt
+            signature.txt
+            base-signature.txt
+            package.txt
+          retention-days: 30
+
+      - name: Publish Alpha 11.5.0
+        if: github.ref == 'refs/heads/wam-11.5.0'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v11.5.0
+          target_commitish: wam-11.5.0
+          name: Wam Bam Alpha 11.5.0 - Frankie, Levels 11-100 and Boosters
+          prerelease: true
+          body: |
+            Production upgrade built from the exact signed Alpha 11.4.2 lineage.
+
+            Level 10:
+            - Uses the exact supplied 958x1642 Frankie Flash stage PNG, unchanged and verified by SHA256.
+            - Keeps the 30 moves, boss health, special board mask, ice, boss attacks and match engine.
+            - Keeps GOALS, MOVES, HINT and Pause with the Ⅱ symbol.
+            - Keeps bright pieces and moves Frankie reaction text away from Pause.
+
+            Levels 11-100:
+            - Adds the Level 1-9 style GOALS, MOVES, stars/progress, level title, HINT, Pause, board frame and bottom booster strip.
+            - Preserves the signed campaign and match engine byte-for-byte, including every existing board shape, row/column layout, target, move count, blocker, difficulty, special mechanic and progression rule.
+
+            Boosters:
+            - Hammer uses a drop, impact and shake animation.
+            - Mic Blast uses the existing microphone art plus stage sound-wave animation.
+            - Shuffle now uses the existing swap inventory as a true animated board reshuffle.
+            - Spotlight sweeps stage-light beams and sparkles over the board.
+            - Jukebox is a real stored inventory action using the existing wambam-jukebox-count save key, with glow, music and equaliser effects.
+            - Hammer reward wording/art and real hammer inventory remain intact.
+            - Popups remain above the booster strip.
+
+            Identity and preservation:
+            - Package: com.macca.wambamthankumam
+            - Version: 11.5.0
+            - versionCode: 115000
+            - Permanent signing certificate unchanged from 11.4.2.
+            - Saves and progression stay under the same package and signing identity.
+
+            CI verifies the build, package, signature, exact Frankie asset inside the packaged APK, JavaScript syntax, and byte-for-byte preservation of wam-campaign.js, wam-engine.js and the existing Level 10 boss patch. BlueStacks runtime testing is still required.
+          files: |
+            WamBam_Alpha_11.5.0_Frankie_Levels11-100_Boosters.apk
+            SHA256SUMS.txt
