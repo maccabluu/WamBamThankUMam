@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Hammer booster">
+  <defs>
+    <linearGradient id="head" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff6cae"/>
+      <stop offset="0.48" stop-color="#ed1977"/>
+      <stop offset="1" stop-color="#9f074d"/>
+    </linearGradient>
+    <linearGradient id="handle" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f4b14e"/>
+      <stop offset="0.5" stop-color="#9c4d1d"/>
+      <stop offset="1" stop-color="#54230f"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2.2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <g transform="rotate(-24 64 64)" filter="url(#glow)">
+    <rect x="57" y="48" width="14" height="67" rx="7" fill="url(#handle)" stroke="#ffd25f" stroke-width="3"/>
+    <rect x="22" y="19" width="84" height="38" rx="15" fill="url(#head)" stroke="#ffd25f" stroke-width="5"/>
+    <rect x="26" y="24" width="76" height="9" rx="4.5" fill="#ffb6d5" opacity=".55"/>
+    <path d="M64 25l4.3 8.8 9.7 1.4-7 6.8 1.7 9.6L64 47l-8.7 4.6L57 42l-7-6.8 9.7-1.4z" fill="#ffd83d" stroke="#fff0a3" stroke-width="1.8"/>
+    <path d="M30 52h68" stroke="#7b063b" stroke-width="3" stroke-linecap="round" opacity=".7"/>
+  </g>
+</svg>
