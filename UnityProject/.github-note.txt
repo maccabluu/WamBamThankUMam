@@ -1,0 +1,1 @@
+Unity Alpha 0.5 source lives in this folder. Open UnityProject in Unity Hub with Unity 6.3 LTS and Android Build Support installed. Use Wam Bam > Build Android APK to create Builds/Android/WamBamThankUMam-Alpha-0.5.apk.
