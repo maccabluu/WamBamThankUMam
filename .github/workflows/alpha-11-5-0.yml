@@ -83,7 +83,9 @@ jobs:
           console.log('Level 10:',l.id,l.name,l.moves,'mask rows',l.mask.length,'ice',l.targets.ice,'campaign total',C.TOTAL);
           NODE
           grep -Fq 'wam1140-health-fill' work/assets/www/gameplay-1140.js
-          grep -Fq 'BOSS ATTACK' work/assets/www/gameplay-1140.js
+          grep -Fq 'function attackFlash(v)' work/assets/www/gameplay-1140.js
+          grep -Fq 'this.__wam1140PlayerMoves%5===0' work/assets/www/gameplay-1140.js
+          grep -Fq 'this.game.moves=Math.max(0,this.game.moves-1)' work/assets/www/gameplay-1140.js
           grep -Fq 'wam1140-reaction' work/assets/www/gameplay-1140.js
 
       - name: Apply Level 10, Levels 11-100 and booster upgrade
