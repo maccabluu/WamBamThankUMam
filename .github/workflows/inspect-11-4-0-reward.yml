@@ -1,0 +1,35 @@
+name: Inspect Wam Bam 11.4.0 reward/modal
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-11-4-0-reward.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download exact signed 11.4.0 APK
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o base.apk https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.4.0/WamBam_Alpha_11.4.0_Frankie_Flash_Boss.apk
+          echo '6b6a60f97cc59d884207b0a8b015033aa68dfae0ef68f8b851e6d449afbfd0b9  base.apk' | sha256sum -c -
+      - name: Inspect reward code and modal layering
+        run: |
+          set -euo pipefail
+          unzip -p base.apk assets/www/wam-ui.js > wam-ui.js
+          echo '=== Heel Smash matches ==='
+          grep -n -C 8 -F 'Heel Smash' wam-ui.js || true
+          echo '=== earned matches ==='
+          grep -n -C 10 -F 'earned!' wam-ui.js || true
+          echo '=== overlay/modal/dialog matches ==='
+          grep -n -C 5 -E 'wam-(overlay|modal|dialog|result|complete)|role=.dialog|z-index' wam-ui.js | head -n 260 || true
+          echo '=== hammer/heel artwork candidates ==='
+          unzip -Z1 base.apk | grep -Ei 'assets/www/.*(hammer|heel|smash|booster).*\.(png|jpg|webp|svg)$' | head -n 200 || true
+          echo '=== all artwork booster candidates ==='
+          unzip -Z1 base.apk | grep -Ei 'assets/www/artwork/.*\.(png|jpg|webp|svg)$' | grep -Ei '(hammer|heel|booster|power|tool)' | head -n 200 || true
