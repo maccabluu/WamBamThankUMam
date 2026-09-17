@@ -15,21 +15,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Inspect current signed production booster APIs
+      - name: Inspect production booster art and campaign API
         run: |
           set -euo pipefail
           curl -fL --retry 3 -o base.apk https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.4.2/WamBam_Alpha_11.4.2_Level10_Visual_Hammer_Popup_Fix.apk
           echo '8afd8d8fd9c309e461fc70cb5614f5385944a6439f233b4df1f0803835bfd7d8  base.apk' | sha256sum -c -
-          unzip -p base.apk assets/www/wam-ui.js > ui.js
-          unzip -p base.apk assets/www/wam-engine.js > engine.js
-          echo '=== UI HEADER ==='
-          head -n 20 ui.js
-          echo '=== SCRIPT GLOBALS ==='
-          unzip -l base.apk 'assets/www/*.js' | awk '{print $4}' | sed '/^$/d'
-          for f in $(unzip -l base.apk 'assets/www/*.js' | awk '/assets\/www\/.*\.js$/{print $4}'); do unzip -p base.apk "$f" | grep -nE 'Wam(Content|UI|Engine)|saveInventory|inventory\(' | head -n 35 && echo "--- $f" || true; done
-          echo '=== BOOSTER UI REFERENCES ==='
-          grep -nE "booster|hammer|rocket|swap|disco|jukebox|shuffle|hint|pause" ui.js | head -n 220 || true
-          echo '=== ENGINE METHODS / BOARD STATE ==='
-          grep -nE "class Game|shuffle|swap|findMove|remove|clear|resolve|boosters|grid|board|cells|pieces" engine.js | head -n 260 || true
-          echo '=== UI CLASS METHODS ==='
-          grep -nE "class GameView|render\(|swap\(|pause\(|end\(|clearHint|toast|boosterButtons" ui.js | head -n 220 || true
+          unzip -p base.apk assets/www/wam-campaign.js > campaign.js
+          echo '=== MATCHING ART ASSETS ==='
+          unzip -l base.apk | awk '{print $4}' | grep -Ei '(^|/)(artwork|icons)/.*(mic|micro|juke|spot|arrow|shuffle|hammer|disco|rocket|booster|row|bow)' | head -n 250 || true
+          echo '=== CAMPAIGN PIECES AND BOOSTERS ==='
+          grep -nE 'PIECES|BOOSTERS|BOOSTER_LABELS|inventory\(|saveInventory|heel|row|bow|disco' campaign.js | head -n 220 || true
