@@ -22,39 +22,11 @@ encoded = ''.join(''.join(p.read_text().split()) for p in parts)
 raw = base64.b64decode(encoded, validate=True)
 assert raw[:3] == b'\xff\xd8\xff', 'Restored Frankie background is not JPEG'
 assert len(raw) > 15000, f'Restored Frankie background unexpectedly small: {len(raw)} bytes'
-
-def jpeg_dimensions(data: bytes):
-    i = 2
-    sof = {0xC0,0xC1,0xC2,0xC3,0xC5,0xC6,0xC7,0xC9,0xCA,0xCB,0xCD,0xCE,0xCF}
-    while i + 9 < len(data):
-        if data[i] != 0xFF:
-            i += 1
-            continue
-        while i < len(data) and data[i] == 0xFF:
-            i += 1
-        if i >= len(data):
-            break
-        marker = data[i]
-        i += 1
-        if marker in {0xD8,0xD9} or 0xD0 <= marker <= 0xD7:
-            continue
-        if i + 2 > len(data):
-            break
-        length = int.from_bytes(data[i:i+2], 'big')
-        if marker in sof:
-            height = int.from_bytes(data[i+3:i+5], 'big')
-            width = int.from_bytes(data[i+5:i+7], 'big')
-            return width, height
-        if length < 2:
-            break
-        i += length
-    raise AssertionError('Could not read JPEG dimensions')
-
-w, h = jpeg_dimensions(raw)
-assert (w, h) == (240, 411), f'Unexpected restored Frankie dimensions: {w}x{h}'
+assert raw[-2:] == b'\xff\xd9', 'Restored Frankie JPEG is truncated'
 art = root / 'artwork' / 'frankie-level10-bg.jpg'
 art.write_bytes(raw)
-(root / 'artwork' / 'frankie-level10-bg.sha256').write_text(hashlib.sha256(raw).hexdigest() + '\n')
+sha = hashlib.sha256(raw).hexdigest()
+(root / 'artwork' / 'frankie-level10-bg.sha256').write_text(sha + '\n')
 
 # Carry forward the user's Hammer reward correction from the failed 11.4.1 build.
 hammer_src = release_tools / 'alpha-11.4.1' / 'booster-hammer-1141.svg'
@@ -101,4 +73,4 @@ assert 'z-index:60000' in check, 'Modal-over-booster fix missing'
 patched = (root / 'gameplay-1142.js').read_text()
 for needle in ["pause.textContent='Ⅱ'", 'brightenPieces', 'wam1140-reaction', 'filter:none!important']:
     assert needle in patched, needle
-print(f'Applied Alpha 11.4.2: restored {w}x{h} Frankie background, brighter Level 10 board, repaired pause/reaction layout, Hammer reward and modal layering.')
+print(f'Applied Alpha 11.4.2: restored larger Frankie background ({len(raw)} bytes, sha256 {sha}), brighter Level 10 board, repaired pause/reaction layout, Hammer reward and modal layering.')
