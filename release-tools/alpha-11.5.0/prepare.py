@@ -39,7 +39,7 @@ for needle in [
     "JUKEBOX_KEY='wambam-jukebox-count'",
     'v.game.reshuffle()',
     "label:'JUKEBOX JAM!'",
-    "pause.textContent='Ⅱ'",
+    "b.textContent='Ⅱ'",
 ]:
     assert needle in script_text, needle
 shutil.copyfile(script_src, root / 'gameplay-1150.js')
