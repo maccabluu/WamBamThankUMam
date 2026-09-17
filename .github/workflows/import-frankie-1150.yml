@@ -1,0 +1,49 @@
+name: Import Frankie 11.5.0 artwork
+
+on:
+  push:
+    branches: [wam-11.5.0]
+    paths:
+      - '.github/workflows/import-frankie-1150.yml'
+      - 'release-tools/alpha-11.5.0/import-trigger.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  import-art:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: wam-11.5.0
+      - name: Download exact supplied Frankie artwork
+        run: |
+          set -euo pipefail
+          mkdir -p release-tools/alpha-11.5.0
+          curl -fL --retry 3 -o release-tools/alpha-11.5.0/frankie-level10-bg-1150.png 'https://cdn.openart.ai/openart-uploads/production/attachment-transfers/ae1f294c0378e8236c24e9f15a8ebe357e3eb0bf7937927f0fe3723f886d01df.png'
+          echo '427bd7ccf5de9fcae2c54bbf788391bff2246ef32f405134f2b9d321a0c92019  release-tools/alpha-11.5.0/frankie-level10-bg-1150.png' | sha256sum -c -
+          python3 - <<'PY'
+          import struct
+          from pathlib import Path
+          p=Path('release-tools/alpha-11.5.0/frankie-level10-bg-1150.png')
+          b=p.read_bytes()
+          assert b[:8] == b'\x89PNG\r\n\x1a\n'
+          w,h=struct.unpack('>II',b[16:24])
+          assert (w,h)==(958,1642),(w,h)
+          assert len(b)==3391541,len(b)
+          print('Frankie artwork verified:',w,h,len(b))
+          PY
+      - name: Commit binary artwork to 11.5.0 branch
+        run: |
+          set -euo pipefail
+          git config user.name 'BluStudio Build Bot'
+          git config user.email 'bigmacblu@gmail.com'
+          git add release-tools/alpha-11.5.0/frankie-level10-bg-1150.png
+          if git diff --cached --quiet; then
+            echo 'Artwork already present.'
+            exit 0
+          fi
+          git commit -m 'Add exact supplied Frankie Flash Level 10 artwork'
+          git push origin HEAD:wam-11.5.0
