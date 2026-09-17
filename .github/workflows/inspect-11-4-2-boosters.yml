@@ -22,6 +22,11 @@ jobs:
           echo '8afd8d8fd9c309e461fc70cb5614f5385944a6439f233b4df1f0803835bfd7d8  base.apk' | sha256sum -c -
           unzip -p base.apk assets/www/wam-ui.js > ui.js
           unzip -p base.apk assets/www/wam-engine.js > engine.js
+          echo '=== UI HEADER ==='
+          head -n 20 ui.js
+          echo '=== SCRIPT GLOBALS ==='
+          unzip -l base.apk 'assets/www/*.js' | awk '{print $4}' | sed '/^$/d'
+          for f in $(unzip -l base.apk 'assets/www/*.js' | awk '/assets\/www\/.*\.js$/{print $4}'); do unzip -p base.apk "$f" | grep -nE 'Wam(Content|UI|Engine)|saveInventory|inventory\(' | head -n 35 && echo "--- $f" || true; done
           echo '=== BOOSTER UI REFERENCES ==='
           grep -nE "booster|hammer|rocket|swap|disco|jukebox|shuffle|hint|pause" ui.js | head -n 220 || true
           echo '=== ENGINE METHODS / BOARD STATE ==='
