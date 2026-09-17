@@ -105,7 +105,7 @@ jobs:
           grep -Fq "LEVEL10_BG='artwork/frankie-level10-bg-1150.png'" work/assets/www/gameplay-1150.js
           grep -Fq 'STANDARD_MIN=11' work/assets/www/gameplay-1150.js
           grep -Fq 'STANDARD_MAX=100' work/assets/www/gameplay-1150.js
-          grep -Fq "pause.textContent='Ⅱ'" release-tools/alpha-11.5.0/prepare.py
+          grep -Fq "b.textContent='Ⅱ'" release-tools/alpha-11.5.0/prepare.py
           grep -Fq 'v.game.reshuffle()' work/assets/www/gameplay-1150.js
           grep -Fq "label:'JUKEBOX JAM!'" work/assets/www/gameplay-1150.js
           grep -Fq 'wam1150-hammer' work/assets/www/gameplay-1150.js
