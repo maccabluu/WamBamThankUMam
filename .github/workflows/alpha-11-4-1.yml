@@ -1,0 +1,172 @@
+name: Wam Bam Alpha 11.4.1 Hammer + Modal Fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/alpha-11-4-1.yml'
+      - 'release-tools/alpha-11.4.1/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wam-11-4-1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Verify patch source and Android SDK
+        run: |
+          set -euo pipefail
+          test -f release-tools/alpha-11.4.1/prepare.py
+          test -f release-tools/alpha-11.4.1/booster-hammer-1141.svg
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -perm -111 | head -n1 || true)"; fi
+          test -x "$SDKMANAGER"
+          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
+
+      - name: Download exact signed 11.4.0 production base
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o base.apk https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.4.0/WamBam_Alpha_11.4.0_Frankie_Flash_Boss.apk
+          echo '6b6a60f97cc59d884207b0a8b015033aa68dfae0ef68f8b851e6d449afbfd0b9  base.apk' | sha256sum -c -
+          curl -fL --retry 3 -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          java -jar apktool.jar d -f base.apk -o work
+          test -f work/assets/www/gameplay-1140.js
+          test -f work/assets/www/wam-ui.js
+          cp work/assets/www/wam-campaign.js campaign-before.js
+          cp work/assets/www/gameplay-1140.js gameplay-1140-before.js
+
+      - name: Apply Hammer reward and modal layering fix
+        run: |
+          set -euo pipefail
+          python3 release-tools/alpha-11.4.1/prepare.py work/assets/www
+
+      - name: Verify UI-only fix and preserved gameplay
+        run: |
+          set -euo pipefail
+          cmp -s campaign-before.js work/assets/www/wam-campaign.js
+          cmp -s gameplay-1140-before.js work/assets/www/gameplay-1140.js
+          grep -Fq "hammer:'Hammer'" work/assets/www/wam-ui.js
+          grep -Fq "key==='hammer'?'icons/booster-hammer-1141.svg'" work/assets/www/wam-ui.js
+          grep -Fq '.wam-shade{position:absolute;inset:0;z-index:60000;' work/assets/www/wam-ui.js
+          ! grep -Fq 'Heel Smash' work/assets/www/wam-ui.js
+          test -f work/assets/www/icons/booster-hammer-1141.svg
+          grep -Fq 'aria-label="Hammer booster"' work/assets/www/icons/booster-hammer-1141.svg
+          grep -Fq 'FRANKIE STOLE A MOVE' work/assets/www/gameplay-1140.js
+          test -f work/assets/www/artwork/frankie-level10-bg.jpg
+          echo '850b4e9d3c171eec810ca7e5e465ecc813c3c1afdaf5a130435dc8a326122d7a  work/assets/www/artwork/frankie-level10-bg.jpg' | sha256sum -c -
+          echo 'Verified: Hammer remains the real hammer inventory key; reward visual is Hammer; modal shade is above custom booster/pause HUD; Frankie Level 10 and campaign remain intact.'
+
+      - name: Set Android release version
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('work/apktool.yml')
+          s=p.read_text()
+          s,n=re.subn(r'(?m)^(\s*versionCode:\s*).+$',r'\g<1>114001',s,count=1)
+          s,m=re.subn(r'(?m)^(\s*versionName:\s*).+$',r'\g<1>11.4.1',s,count=1)
+          assert n==m==1
+          p.write_text(s)
+          PY
+
+      - name: Build production APK
+        run: |
+          set -euo pipefail
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'build-tools;35.0.0'
+          java -jar apktool.jar b work -o WamBam-11.4.1-unsigned.apk
+
+      - name: Sign with permanent Wam Bam identity and verify
+        env:
+          WB_KEYSTORE_B64: ${{ secrets.WB_KEYSTORE_B64 }}
+          WB_KEYSTORE_PASSWORD: ${{ secrets.WB_KEYSTORE_PASSWORD }}
+          WB_KEY_ALIAS: ${{ secrets.WB_KEY_ALIAS }}
+          WB_KEY_PASSWORD: ${{ secrets.WB_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for value in WB_KEYSTORE_B64 WB_KEYSTORE_PASSWORD WB_KEY_ALIAS WB_KEY_PASSWORD; do test -n "${!value:-}" || exit 1; done
+          printf '%s' "$WB_KEYSTORE_B64" | base64 -d > release.keystore
+          trap 'rm -f release.keystore' EXIT
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/zipalign" -f 4 WamBam-11.4.1-unsigned.apk aligned.apk
+          "$BT/apksigner" sign --ks release.keystore --ks-pass env:WB_KEYSTORE_PASSWORD --ks-key-alias "$WB_KEY_ALIAS" --key-pass env:WB_KEY_PASSWORD --out WamBam_Alpha_11.4.1_Hammer_Modal_Fix.apk aligned.apk
+          "$BT/apksigner" verify --verbose --print-certs WamBam_Alpha_11.4.1_Hammer_Modal_Fix.apk > signature.txt
+          "$BT/apksigner" verify --print-certs base.apk > base-signature.txt
+          NEW="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' signature.txt)"
+          BASE="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' base-signature.txt)"
+          test "$NEW" = 'd04c069c47d1642c83243de681e62bfd1a5c996816ab0c7b15dea82a91338ad1'
+          test "$NEW" = "$BASE"
+          "$BT/aapt" dump badging WamBam_Alpha_11.4.1_Hammer_Modal_Fix.apk > package.txt
+          grep -q "package: name='com.macca.wambamthankumam' versionCode='114001' versionName='11.4.1'" package.txt
+          unzip -p WamBam_Alpha_11.4.1_Hammer_Modal_Fix.apk assets/www/wam-campaign.js > campaign-packaged.js
+          cmp -s campaign-before.js campaign-packaged.js
+          unzip -p WamBam_Alpha_11.4.1_Hammer_Modal_Fix.apk assets/www/gameplay-1140.js > gameplay-1140-packaged.js
+          cmp -s gameplay-1140-before.js gameplay-1140-packaged.js
+          unzip -p WamBam_Alpha_11.4.1_Hammer_Modal_Fix.apk assets/www/wam-ui.js > wam-ui-packaged.js
+          grep -Fq "hammer:'Hammer'" wam-ui-packaged.js
+          grep -Fq "key==='hammer'?'icons/booster-hammer-1141.svg'" wam-ui-packaged.js
+          grep -Fq 'z-index:60000' wam-ui-packaged.js
+          ! grep -Fq 'Heel Smash' wam-ui-packaged.js
+          unzip -p WamBam_Alpha_11.4.1_Hammer_Modal_Fix.apk assets/www/icons/booster-hammer-1141.svg > hammer-packaged.svg
+          grep -Fq 'Hammer booster' hammer-packaged.svg
+          sha256sum WamBam_Alpha_11.4.1_Hammer_Modal_Fix.apk > SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WamBam-Alpha-11.4.1-Hammer-Modal-Fix
+          path: |
+            WamBam_Alpha_11.4.1_Hammer_Modal_Fix.apk
+            SHA256SUMS.txt
+            signature.txt
+            base-signature.txt
+            package.txt
+          retention-days: 30
+
+      - name: Publish Alpha 11.4.1
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v11.4.1
+          name: Wam Bam Alpha 11.4.1 - Hammer + Popup Fix
+          prerelease: true
+          body: |
+            Fixes the two UI issues shown in BlueStacks after 11.4.0.
+
+            Changes:
+            - The existing hammer reward no longer displays as Heel Smash.
+            - Completion rewards now show a proper Wam Bam Hammer icon and '+1 Hammer earned!'.
+            - Hammer keeps the existing real `hammer` inventory key, so saves and booster counts remain compatible.
+            - Tutorial, level-complete, out-of-moves and pause-style modal shades now render above the custom booster strip, booster counts and restored pause button.
+            - Modal buttons receive taps without the booster HUD sitting over them.
+
+            Preserved:
+            - Level 10 Frankie Flash boss gameplay from signed 11.4.0 is unchanged.
+            - wam-campaign.js is byte-for-byte identical to signed 11.4.0.
+            - gameplay-1140.js is byte-for-byte identical to signed 11.4.0.
+            - Levels, targets, moves, board shapes, blockers, HINT behavior and saves/progression are unchanged.
+
+            Identity:
+            - Package: com.macca.wambamthankumam
+            - Android versionCode: 114001
+            - Version: 11.4.1
+            - Permanent signing certificate unchanged.
+
+            Build/package/signature/static checks are verified in CI. BlueStacks runtime confirmation is still required.
+          files: |
+            WamBam_Alpha_11.4.1_Hammer_Modal_Fix.apk
+            SHA256SUMS.txt
