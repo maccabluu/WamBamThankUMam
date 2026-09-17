@@ -1,0 +1,171 @@
+name: Wam Bam Alpha 11.5.5 Levels 11-100 Background Match
+
+on:
+  push:
+    branches: [wam-11.5.5]
+    paths:
+      - '.github/workflows/alpha-11-5-5.yml'
+      - 'release-tools/alpha-11.5.5/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wam-11-5-5-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: wam-11.5.5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Verify 11.5.5 patch sources
+        run: |
+          set -euo pipefail
+          test -f release-tools/alpha-11.5.5/prepare.py
+          test -f release-tools/alpha-11.5.5/background-1155.js
+          node --check release-tools/alpha-11.5.5/background-1155.js
+          grep -Fq "const MIN_LEVEL=11;" release-tools/alpha-11.5.5/background-1155.js
+          grep -Fq "const MAX_LEVEL=100;" release-tools/alpha-11.5.5/background-1155.js
+          grep -Fq "const BG_PATH='artwork/wambam-level1-bg.jpg';" release-tools/alpha-11.5.5/background-1155.js
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -perm -111 | head -n1 || true)"; fi
+          test -x "$SDKMANAGER"
+          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
+
+      - name: Download signed Alpha 11.5.4 production lineage
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o base.apk https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.5.4/WamBam_Alpha_11.5.4_Goals_Contained.apk
+          echo 'aa6e6e68cb1700364e4cea687d768863b2ab4362162daa2e2f73a2aeb6e8794d  base.apk' | sha256sum -c -
+          curl -fL --retry 3 -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          java -jar apktool.jar d -f base.apk -o work
+          for f in wam-campaign.js wam-engine.js gameplay-1133.js gameplay-1140.js gameplay-1142.js gameplay-1150.js gameplay-1151.js goals-1152.js goals-1153.js goals-1154.js; do test -f "work/assets/www/$f"; cp "work/assets/www/$f" "$f.before"; done
+          test -f work/assets/www/artwork/wambam-level1-bg.jpg
+          unzip -p base.apk assets/www/artwork/wambam-level1-bg.jpg > early-background-before.jpg
+          echo '3c55897aa5db6fc4f5373360cc151a3b298ebaf38c03727d841508aedd2e8a87  early-background-before.jpg' | sha256sum -c -
+          grep -Fq "const MIN_LEVEL=2;" gameplay-1133.js.before
+          grep -Fq "const MAX_LEVEL=9;" gameplay-1133.js.before
+          grep -Fq "const BG_PATH='artwork/wambam-level1-bg.jpg';" gameplay-1133.js.before
+          unzip -p base.apk assets/www/artwork/frankie-level10-bg-1150.png > frankie-before.png
+          echo '427bd7ccf5de9fcae2c54bbf788391bff2246ef32f405134f2b9d321a0c92019  frankie-before.png' | sha256sum -c -
+
+      - name: Apply Levels 11-100 background match only
+        run: |
+          set -euo pipefail
+          python3 release-tools/alpha-11.5.5/prepare.py work/assets/www
+
+      - name: Verify production gameplay remains unchanged
+        run: |
+          set -euo pipefail
+          for f in wam-campaign.js wam-engine.js gameplay-1133.js gameplay-1140.js gameplay-1142.js gameplay-1150.js gameplay-1151.js goals-1152.js goals-1153.js goals-1154.js; do cmp -s "$f.before" "work/assets/www/$f"; done
+          node --check work/assets/www/background-1155.js
+          grep -Fq '<script src="background-1155.js"></script>' work/assets/www/index.html
+          grep -Fq "const MIN_LEVEL=11;" work/assets/www/background-1155.js
+          grep -Fq "const MAX_LEVEL=100;" work/assets/www/background-1155.js
+          grep -Fq "const BG_PATH='artwork/wambam-level1-bg.jpg';" work/assets/www/background-1155.js
+          grep -Fq "imp(art,'object-fit','cover');" work/assets/www/background-1155.js
+          grep -Fq "imp(art,'filter','saturate(1.04) brightness(.94)');" work/assets/www/background-1155.js
+          sha256sum work/assets/www/artwork/wambam-level1-bg.jpg | grep -Fq '3c55897aa5db6fc4f5373360cc151a3b298ebaf38c03727d841508aedd2e8a87'
+
+      - name: Set Android version 11.5.5
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('work/apktool.yml')
+          s=p.read_text()
+          s,n=re.subn(r'(?m)^(\s*versionCode:\s*).+$',r'\g<1>115005',s,count=1)
+          s,m=re.subn(r'(?m)^(\s*versionName:\s*).+$',r'\g<1>11.5.5',s,count=1)
+          assert n==m==1
+          p.write_text(s)
+          PY
+
+      - name: Build production APK
+        run: |
+          set -euo pipefail
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'build-tools;35.0.0'
+          java -jar apktool.jar b work -o WamBam-11.5.5-unsigned.apk
+
+      - name: Sign permanently and inspect packaged APK
+        env:
+          WB_KEYSTORE_B64: ${{ secrets.WB_KEYSTORE_B64 }}
+          WB_KEYSTORE_PASSWORD: ${{ secrets.WB_KEYSTORE_PASSWORD }}
+          WB_KEY_ALIAS: ${{ secrets.WB_KEY_ALIAS }}
+          WB_KEY_PASSWORD: ${{ secrets.WB_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for value in WB_KEYSTORE_B64 WB_KEYSTORE_PASSWORD WB_KEY_ALIAS WB_KEY_PASSWORD; do test -n "${!value:-}" || exit 1; done
+          printf '%s' "$WB_KEYSTORE_B64" | base64 -d > release.keystore
+          trap 'rm -f release.keystore' EXIT
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/zipalign" -f 4 WamBam-11.5.5-unsigned.apk aligned.apk
+          "$BT/apksigner" sign --ks release.keystore --ks-pass env:WB_KEYSTORE_PASSWORD --ks-key-alias "$WB_KEY_ALIAS" --key-pass env:WB_KEY_PASSWORD --out WamBam_Alpha_11.5.5_Levels11-100_Background.apk aligned.apk
+          "$BT/apksigner" verify --verbose --print-certs WamBam_Alpha_11.5.5_Levels11-100_Background.apk > signature.txt
+          "$BT/apksigner" verify --print-certs base.apk > base-signature.txt
+          NEW="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' signature.txt)"
+          BASE="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' base-signature.txt)"
+          test "$NEW" = 'd04c069c47d1642c83243de681e62bfd1a5c996816ab0c7b15dea82a91338ad1'
+          test "$NEW" = "$BASE"
+          "$BT/aapt" dump badging WamBam_Alpha_11.5.5_Levels11-100_Background.apk > package.txt
+          grep -q "package: name='com.macca.wambamthankumam' versionCode='115005' versionName='11.5.5'" package.txt
+          for f in wam-campaign.js wam-engine.js gameplay-1133.js gameplay-1140.js gameplay-1142.js gameplay-1150.js gameplay-1151.js goals-1152.js goals-1153.js goals-1154.js; do unzip -p WamBam_Alpha_11.5.5_Levels11-100_Background.apk "assets/www/$f" > "$f.packaged"; cmp -s "$f.before" "$f.packaged"; done
+          unzip -p WamBam_Alpha_11.5.5_Levels11-100_Background.apk assets/www/background-1155.js > background-1155-packaged.js
+          node --check background-1155-packaged.js
+          grep -Fq "const MIN_LEVEL=11;" background-1155-packaged.js
+          grep -Fq "const MAX_LEVEL=100;" background-1155-packaged.js
+          grep -Fq "const BG_PATH='artwork/wambam-level1-bg.jpg';" background-1155-packaged.js
+          unzip -p WamBam_Alpha_11.5.5_Levels11-100_Background.apk assets/www/artwork/wambam-level1-bg.jpg > early-background-packaged.jpg
+          echo '3c55897aa5db6fc4f5373360cc151a3b298ebaf38c03727d841508aedd2e8a87  early-background-packaged.jpg' | sha256sum -c -
+          unzip -p WamBam_Alpha_11.5.5_Levels11-100_Background.apk assets/www/artwork/frankie-level10-bg-1150.png > frankie-packaged.png
+          echo '427bd7ccf5de9fcae2c54bbf788391bff2246ef32f405134f2b9d321a0c92019  frankie-packaged.png' | sha256sum -c -
+          sha256sum WamBam_Alpha_11.5.5_Levels11-100_Background.apk > SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WamBam-Alpha-11.5.5-Production
+          path: |
+            WamBam_Alpha_11.5.5_Levels11-100_Background.apk
+            SHA256SUMS.txt
+            signature.txt
+            base-signature.txt
+            package.txt
+          retention-days: 30
+
+      - name: Publish Alpha 11.5.5
+        if: github.ref == 'refs/heads/wam-11.5.5'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v11.5.5
+          target_commitish: wam-11.5.5
+          name: Wam Bam Alpha 11.5.5 - Levels 11-100 Background Match
+          prerelease: true
+          body: |
+            Production visual correction built directly from signed Alpha 11.5.4.
+
+            Levels 11 through 100 now point to the exact same gameplay background file used by Levels 1 through 9: artwork/wambam-level1-bg.jpg.
+
+            - Uses the existing packaged background, no generated or replacement artwork.
+            - Uses the same cover, centre and colour presentation as the Levels 1-9 runtime patch.
+            - Level 10 keeps its separate Frankie Flash boss background.
+            - Campaign, board shapes, targets, moves, blockers, difficulty, boss logic, boosters, saves and progression are unchanged.
+            - Package remains com.macca.wambamthankumam.
+            - Permanent signing certificate matches Alpha 11.5.4.
+            - Version 11.5.5, versionCode 115005.
+
+            Build, signature and packaged-file checks pass in CI. BlueStacks runtime confirmation is still required before calling the visual background issue resolved.
+          files: |
+            WamBam_Alpha_11.5.5_Levels11-100_Background.apk
+            SHA256SUMS.txt
