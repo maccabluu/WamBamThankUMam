@@ -1,0 +1,188 @@
+name: Wam Bam Alpha 11.5.10 Frankie Message Position
+
+on:
+  push:
+    branches: [wam-11.5.10]
+    paths:
+      - '.github/workflows/alpha-11-5-10.yml'
+      - 'release-tools/alpha-11.5.10/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wam-11-5-10-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: wam-11.5.10
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Verify 11.5.10 patch sources
+        run: |
+          set -euo pipefail
+          test -f release-tools/alpha-11.5.10/prepare.py
+          test -f release-tools/alpha-11.5.10/reaction-11510.js
+          node --check release-tools/alpha-11.5.10/reaction-11510.js
+          grep -Fq "left','315px'" release-tools/alpha-11.5.10/reaction-11510.js
+          grep -Fq "top','270px'" release-tools/alpha-11.5.10/reaction-11510.js
+          grep -Fq "right','auto'" release-tools/alpha-11.5.10/reaction-11510.js
+
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -perm -111 | head -n1 || true)"
+          fi
+          test -x "$SDKMANAGER"
+          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
+
+      - name: Download signed Alpha 11.5.9 production lineage
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o base.apk https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.5.9/WamBam_Alpha_11.5.9_No_White_Level_Flash.apk
+          echo '87447a4c8a19925f6520955ad4531bc300dfe58d912cda45a2aee24abf76f9f2  base.apk' | sha256sum -c -
+
+          curl -fL --retry 3 -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          java -jar apktool.jar d -f base.apk -o work
+
+          for f in wam-campaign.js wam-engine.js wam-ui.js wam-map.js code2.js gameplay-1140.js gameplay-1142.js gameplay-1150.js gameplay-1151.js goals-1154.js background-1155.js layout-1156.js counter-align-1157.js counter-optical-1158.js transition-1159.js; do
+            test -f "work/assets/www/$f"
+            cp "work/assets/www/$f" "$f.before"
+          done
+
+      - name: Apply Level 10 Frankie message position
+        run: |
+          set -euo pipefail
+          python3 release-tools/alpha-11.5.10/prepare.py work/assets/www
+
+      - name: Verify gameplay files remain unchanged
+        run: |
+          set -euo pipefail
+          for f in wam-campaign.js wam-engine.js wam-ui.js wam-map.js code2.js gameplay-1140.js gameplay-1142.js gameplay-1150.js gameplay-1151.js goals-1154.js background-1155.js layout-1156.js counter-align-1157.js counter-optical-1158.js transition-1159.js; do
+            cmp -s "$f.before" "work/assets/www/$f"
+          done
+
+          node --check work/assets/www/reaction-11510.js
+          grep -Fq '<script src="reaction-11510.js"></script>' work/assets/www/index.html
+          grep -Fq "left','315px'" work/assets/www/reaction-11510.js
+          grep -Fq "top','270px'" work/assets/www/reaction-11510.js
+          grep -Fq "right','auto'" work/assets/www/reaction-11510.js
+
+      - name: Set Android version 11.5.10
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p=Path('work/apktool.yml')
+          s=p.read_text()
+          s,n=re.subn(r'(?m)^(\s*versionCode:\s*).+$',r'\g<1>115010',s,count=1)
+          s,m=re.subn(r'(?m)^(\s*versionName:\s*).+$',r'\g<1>11.5.10',s,count=1)
+          assert n==m==1
+          p.write_text(s)
+          PY
+
+      - name: Build production APK
+        run: |
+          set -euo pipefail
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'build-tools;35.0.0'
+          java -jar apktool.jar b work -o WamBam-11.5.10-unsigned.apk
+
+      - name: Sign permanently and inspect packaged APK
+        env:
+          WB_KEYSTORE_B64: ${{ secrets.WB_KEYSTORE_B64 }}
+          WB_KEYSTORE_PASSWORD: ${{ secrets.WB_KEYSTORE_PASSWORD }}
+          WB_KEY_ALIAS: ${{ secrets.WB_KEY_ALIAS }}
+          WB_KEY_PASSWORD: ${{ secrets.WB_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          for value in WB_KEYSTORE_B64 WB_KEYSTORE_PASSWORD WB_KEY_ALIAS WB_KEY_PASSWORD; do
+            test -n "${!value:-}" || exit 1
+          done
+
+          printf '%s' "$WB_KEYSTORE_B64" | base64 -d > release.keystore
+          trap 'rm -f release.keystore' EXIT
+
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+
+          "$BT/zipalign" -f 4 WamBam-11.5.10-unsigned.apk aligned.apk
+
+          "$BT/apksigner" sign             --ks release.keystore             --ks-pass env:WB_KEYSTORE_PASSWORD             --ks-key-alias "$WB_KEY_ALIAS"             --key-pass env:WB_KEY_PASSWORD             --out WamBam_Alpha_11.5.10_Frankie_Message_Position.apk             aligned.apk
+
+          "$BT/apksigner" verify --verbose --print-certs WamBam_Alpha_11.5.10_Frankie_Message_Position.apk > signature.txt
+          "$BT/apksigner" verify --print-certs base.apk > base-signature.txt
+
+          NEW="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' signature.txt)"
+          BASE="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' base-signature.txt)"
+
+          test "$NEW" = 'd04c069c47d1642c83243de681e62bfd1a5c996816ab0c7b15dea82a91338ad1'
+          test "$NEW" = "$BASE"
+
+          "$BT/aapt" dump badging WamBam_Alpha_11.5.10_Frankie_Message_Position.apk > package.txt
+          grep -q "package: name='com.macca.wambamthankumam' versionCode='115010' versionName='11.5.10'" package.txt
+
+          for f in wam-campaign.js wam-engine.js wam-ui.js wam-map.js code2.js gameplay-1140.js gameplay-1142.js gameplay-1150.js gameplay-1151.js goals-1154.js background-1155.js layout-1156.js counter-align-1157.js counter-optical-1158.js transition-1159.js; do
+            unzip -p WamBam_Alpha_11.5.10_Frankie_Message_Position.apk "assets/www/$f" > "$f.packaged"
+            cmp -s "$f.before" "$f.packaged"
+          done
+
+          unzip -p WamBam_Alpha_11.5.10_Frankie_Message_Position.apk assets/www/reaction-11510.js > reaction-11510-packaged.js
+          node --check reaction-11510-packaged.js
+          grep -Fq "left','315px'" reaction-11510-packaged.js
+          grep -Fq "top','270px'" reaction-11510-packaged.js
+
+          unzip -p WamBam_Alpha_11.5.10_Frankie_Message_Position.apk assets/www/index.html > packaged-index.html
+          grep -Fq '<script src="reaction-11510.js"></script>' packaged-index.html
+
+          sha256sum WamBam_Alpha_11.5.10_Frankie_Message_Position.apk > SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WamBam-Alpha-11.5.10-Production
+          path: |
+            WamBam_Alpha_11.5.10_Frankie_Message_Position.apk
+            SHA256SUMS.txt
+            signature.txt
+            base-signature.txt
+            package.txt
+          retention-days: 30
+
+      - name: Publish Alpha 11.5.10
+        if: github.ref == 'refs/heads/wam-11.5.10'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v11.5.10
+          target_commitish: wam-11.5.10
+          name: Wam Bam Alpha 11.5.10 - Frankie Message Position
+          prerelease: true
+          body: |
+            Level 10 visual position update built directly from signed Alpha 11.5.9.
+
+            This build:
+            - moves Frankie Flash's reaction/message bubble left so it no longer sits across his face
+            - keeps the reaction messages and timing unchanged
+            - leaves the Level 10 boss health, attacks, board, ice, goals and moves unchanged
+            - leaves Levels 1-9 and 11-100 unchanged
+            - leaves boosters, saves and progression unchanged
+            - keeps package com.macca.wambamthankumam
+            - keeps the permanent signing certificate
+            - sets version 11.5.10, versionCode 115010
+
+            Build, signature and packaged-file checks pass in CI. BlueStacks runtime confirmation is still required before calling the final visual position confirmed.
+          files: |
+            WamBam_Alpha_11.5.10_Frankie_Message_Position.apk
+            SHA256SUMS.txt
