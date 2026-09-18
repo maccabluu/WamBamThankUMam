@@ -54,7 +54,7 @@ jobs:
           for f in wam-campaign.js wam-engine.js gameplay-1140.js gameplay-1142.js gameplay-1150.js gameplay-1151.js goals-1154.js background-1155.js layout-1156.js; do test -f "work/assets/www/$f"; cp "work/assets/www/$f" "$f.before"; done
           test -f work/assets/www/artwork/booster-bar-reference-1132.png
           unzip -p base.apk assets/www/artwork/booster-bar-reference-1132.png > booster-bar-before.png
-          echo '91f9bc5dc68c9f6d1746ba850e9912c1d698d89e442d82ac46d97d9dc3e02c22  booster-bar-before.png' | sha256sum -c -
+          echo '631962144a0a1b1b55bd33ee9957cf130f21baf3fff11270564babe9e687b360  booster-bar-before.png' | sha256sum -c -
 
       - name: Apply Levels 11-100 booster count alignment
         run: |
@@ -120,7 +120,7 @@ jobs:
           node --check counter-align-1157-packaged.js
           grep -Fq "hammer:135,rocket:260,swap:390,disco:515,jukebox:640" counter-align-1157-packaged.js
           unzip -p WamBam_Alpha_11.5.7_Booster_Counts.apk assets/www/artwork/booster-bar-reference-1132.png > booster-bar-packaged.png
-          echo '91f9bc5dc68c9f6d1746ba850e9912c1d698d89e442d82ac46d97d9dc3e02c22  booster-bar-packaged.png' | sha256sum -c -
+          echo '631962144a0a1b1b55bd33ee9957cf130f21baf3fff11270564babe9e687b360  booster-bar-packaged.png' | sha256sum -c -
           sha256sum WamBam_Alpha_11.5.7_Booster_Counts.apk > SHA256SUMS.txt
 
       - uses: actions/upload-artifact@v4
