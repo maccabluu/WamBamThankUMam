@@ -1,0 +1,223 @@
+name: Wam Bam Alpha 11.6.3 Map Order Fix
+
+on:
+  push:
+    branches: [wam-11.6.3]
+    paths:
+      - '.github/workflows/alpha-11-6-3.yml'
+      - 'release-tools/alpha-11.6.3/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wam-11-6-3-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: wam-11.6.3
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Verify patch source
+        run: |
+          set -euo pipefail
+          test -f release-tools/alpha-11.6.3/prepare.py
+          python3 -m py_compile release-tools/alpha-11.6.3/prepare.py
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -perm -111 | head -n1 || true)"
+          fi
+          test -x "$SDKMANAGER"
+          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
+
+      - name: Download signed Alpha 11.6.2 production lineage
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o base.apk https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.6.2/WamBam_Alpha_11.6.2_Test_Level_Selection_Fix.apk
+          echo '9e888a23197b91ad46253c194230da06838ba117392136cd77e13c6e950e43a0  base.apk' | sha256sum -c -
+
+          curl -fL --retry 3 -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          java -jar apktool.jar d -f base.apk -o work
+
+          for f in wam-campaign.js wam-engine.js wam-ui.js wam-map.js gameplay-1140.js gameplay-1142.js gameplay-1150.js gameplay-1151.js goals-1154.js background-1155.js layout-1156.js counter-align-1157.js counter-optical-1158.js transition-1159.js reaction-11510.js; do
+            test -f "work/assets/www/$f"
+            cp "work/assets/www/$f" "$f.before"
+          done
+
+      - name: Fix map area order
+        run: |
+          set -euo pipefail
+          python3 release-tools/alpha-11.6.3/prepare.py work/assets/www
+          node --check work/assets/www/wam-campaign.js
+
+      - name: Verify map order 1 through 200
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs=require('fs'),vm=require('vm');
+          const ctx={window:{},console};
+          vm.createContext(ctx);
+          vm.runInContext(fs.readFileSync('work/assets/www/wam-campaign.js','utf8'),ctx);
+          const C=ctx.window.WamCampaign;
+
+          if(C.TOTAL!==200) throw new Error('Campaign total changed');
+          if(C.AREAS.length!==20) throw new Error('Expected 20 map areas, got '+C.AREAS.length);
+
+          for(let i=0;i<20;i++){
+            const expectedFrom=1+i*10;
+            const expectedTo=10+i*10;
+            const area=C.AREAS[i];
+            if(area.from!==expectedFrom || area.to!==expectedTo){
+              throw new Error(`Area index ${i} is ${area.from}-${area.to}, expected ${expectedFrom}-${expectedTo}`);
+            }
+            const slice=C.levels.slice(i*10,i*10+10).map(l=>l.id);
+            if(slice[0]!==expectedFrom || slice[9]!==expectedTo){
+              throw new Error(`Area ${expectedFrom}-${expectedTo} points at levels ${slice[0]}-${slice[9]}`);
+            }
+          }
+
+          const order=C.AREAS.map(a=>`${a.from}-${a.to}`).join(', ');
+          console.log('Verified map order:',order);
+
+          if(C.AREAS[9].to!==100 || C.AREAS[10].from!==101) throw new Error('Level 101 does not follow Level 100');
+          if(C.AREAS[19].to!==200) throw new Error('Map does not end at Level 200');
+          NODE
+
+          for f in wam-engine.js wam-ui.js wam-map.js gameplay-1140.js gameplay-1142.js gameplay-1150.js gameplay-1151.js goals-1154.js background-1155.js layout-1156.js counter-align-1157.js counter-optical-1158.js transition-1159.js reaction-11510.js; do
+            cmp -s "$f.before" "work/assets/www/$f"
+          done
+
+          ! cmp -s wam-campaign.js.before work/assets/www/wam-campaign.js
+
+      - name: Set Android version 11.6.3
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('work/apktool.yml')
+          s=p.read_text()
+          s,n=re.subn(r'(?m)^(\s*versionCode:\s*).+$',r'\g<1>116003',s,count=1)
+          s,m=re.subn(r'(?m)^(\s*versionName:\s*).+$',r'\g<1>11.6.3',s,count=1)
+          assert n==m==1
+          p.write_text(s)
+          PY
+
+      - name: Build production APK
+        run: |
+          set -euo pipefail
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'build-tools;35.0.0'
+          java -jar apktool.jar b work -o WamBam-11.6.3-unsigned.apk
+
+      - name: Sign permanently and inspect packaged APK
+        env:
+          WB_KEYSTORE_B64: ${{ secrets.WB_KEYSTORE_B64 }}
+          WB_KEYSTORE_PASSWORD: ${{ secrets.WB_KEYSTORE_PASSWORD }}
+          WB_KEY_ALIAS: ${{ secrets.WB_KEY_ALIAS }}
+          WB_KEY_PASSWORD: ${{ secrets.WB_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          for value in WB_KEYSTORE_B64 WB_KEYSTORE_PASSWORD WB_KEY_ALIAS WB_KEY_PASSWORD; do
+            test -n "${!value:-}" || exit 1
+          done
+
+          printf '%s' "$WB_KEYSTORE_B64" | base64 -d > release.keystore
+          trap 'rm -f release.keystore' EXIT
+
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/zipalign" -f 4 WamBam-11.6.3-unsigned.apk aligned.apk
+
+          "$BT/apksigner" sign             --ks release.keystore             --ks-pass env:WB_KEYSTORE_PASSWORD             --ks-key-alias "$WB_KEY_ALIAS"             --key-pass env:WB_KEY_PASSWORD             --out WamBam_Alpha_11.6.3_Map_Order_Fix.apk             aligned.apk
+
+          "$BT/apksigner" verify --verbose --print-certs WamBam_Alpha_11.6.3_Map_Order_Fix.apk > signature.txt
+          "$BT/apksigner" verify --print-certs base.apk > base-signature.txt
+
+          NEW="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' signature.txt)"
+          BASE="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' base-signature.txt)"
+          test "$NEW" = 'd04c069c47d1642c83243de681e62bfd1a5c996816ab0c7b15dea82a91338ad1'
+          test "$NEW" = "$BASE"
+
+          "$BT/aapt" dump badging WamBam_Alpha_11.6.3_Map_Order_Fix.apk > package.txt
+          grep -q "package: name='com.macca.wambamthankumam' versionCode='116003' versionName='11.6.3'" package.txt
+
+          unzip -p WamBam_Alpha_11.6.3_Map_Order_Fix.apk assets/www/wam-campaign.js > campaign-packaged.js
+          cmp -s work/assets/www/wam-campaign.js campaign-packaged.js
+          node --check campaign-packaged.js
+
+          node - <<'NODE'
+          const fs=require('fs'),vm=require('vm');
+          const ctx={window:{},console};vm.createContext(ctx);
+          vm.runInContext(fs.readFileSync('campaign-packaged.js','utf8'),ctx);
+          const C=ctx.window.WamCampaign;
+          if(C.AREAS.length!==20)throw new Error('Packaged APK area count wrong');
+          for(let i=0;i<20;i++){
+            const a=C.AREAS[i],f=1+i*10,t=10+i*10;
+            if(a.from!==f||a.to!==t)throw new Error(`Packaged area order wrong at ${i}: ${a.from}-${a.to}`);
+          }
+          if(C.AREAS[9].to!==100||C.AREAS[10].from!==101)throw new Error('Packaged Level 101 does not follow Level 100');
+          console.log('Packaged APK map order verified from 1 through 200.');
+          NODE
+
+          sha256sum WamBam_Alpha_11.6.3_Map_Order_Fix.apk > SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WamBam-Alpha-11.6.3-Production
+          path: |
+            WamBam_Alpha_11.6.3_Map_Order_Fix.apk
+            SHA256SUMS.txt
+            signature.txt
+            base-signature.txt
+            package.txt
+          retention-days: 30
+
+      - name: Publish Alpha 11.6.3
+        if: github.ref == 'refs/heads/wam-11.6.3'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v11.6.3
+          target_commitish: wam-11.6.3
+          name: Wam Bam Alpha 11.6.3 - Map Order Fix
+          prerelease: false
+          make_latest: true
+          body: |
+            Fixes the campaign map ordering bug.
+
+            Fixed:
+            - Levels now appear in strict numerical order across the map.
+            - Levels 41-100 now appear before Levels 101-200.
+            - Level 101 now follows Level 100.
+            - Map area tabs now run 1-10, 11-20, 21-30 and continue correctly through 191-200.
+            - Each map area now points at the matching ten campaign levels.
+
+            Kept:
+            - All Levels 1-200 remain selectable for development testing.
+            - Alpha 11.6.2 exact-level testing selection fixes remain intact.
+            - Future-level testing still does not alter real progression.
+            - New Levels 101-200 and all new transparent game pieces remain intact.
+            - Frankie Flash Level 10 remains intact.
+            - Existing saves and boosters remain under the same package.
+            - Permanent signing certificate remains unchanged.
+
+            Package: com.macca.wambamthankumam
+            Version: 11.6.3
+            versionCode: 116003
+
+            CI verifies every map area from 1-10 through 191-200 and specifically checks that Level 101 follows Level 100 in the packaged APK. BlueStacks runtime testing is still required for final visual confirmation.
+          files: |
+            WamBam_Alpha_11.6.3_Map_Order_Fix.apk
+            SHA256SUMS.txt
