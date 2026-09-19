@@ -1,0 +1,306 @@
+name: Wam Bam Alpha 11.6.0 Levels 101-200 and New Pieces
+
+on:
+  push:
+    branches: [wam-11.6.0]
+    paths:
+      - '.github/workflows/alpha-11-6-0.yml'
+      - 'release-tools/alpha-11.6.0/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wam-11-6-0-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: wam-11.6.0
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Verify 11.6.0 patch source
+        run: |
+          set -euo pipefail
+          test -f release-tools/alpha-11.6.0/prepare.py
+          python3 -m py_compile release-tools/alpha-11.6.0/prepare.py
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -perm -111 | head -n1 || true)"
+          fi
+          test -x "$SDKMANAGER"
+          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
+
+      - name: Download signed Alpha 11.5.10 production lineage
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o base.apk https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.5.10/WamBam_Alpha_11.5.10_Frankie_Message_Position.apk
+          echo '2fcfbf9009f234001774a1dee42b471f3e91a4a883ad3f5929b1e566edb44bf2  base.apk' | sha256sum -c -
+
+          curl -fL --retry 3 -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          java -jar apktool.jar d -f base.apk -o work
+
+          for f in wam-campaign.js wam-engine.js wam-ui.js wam-map.js gameplay-1140.js gameplay-1142.js gameplay-1150.js gameplay-1151.js goals-1154.js background-1155.js layout-1156.js counter-align-1157.js counter-optical-1158.js transition-1159.js reaction-11510.js; do
+            test -f "work/assets/www/$f"
+            cp "work/assets/www/$f" "$f.before"
+          done
+
+      - name: Add twelve new transparent Wam Bam pieces
+        run: |
+          set -euo pipefail
+          mkdir -p work/assets/www/icons1160
+
+          curl -fL --retry 3 'https://d2jqrm6oza8nb6.cloudfront.net/datasets/31c05bef-44e8-42cc-b875-f138720553f0.png?_jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlIYXNoIjoiNTg4OWVjMzQ1ZTRkZGRiNCIsImJ1Y2tldCI6InJ1bndheS1kYXRhc2V0cyIsInN0YWdlIjoicHJvZCIsImV4cCI6MTc4OTk5MzkwOH0.BPvdexyCd9OfXV8LhNhr8RhSD0o8tmsATj1E9czjzrQ' -o work/assets/www/icons1160/glam-lipstick.png
+          curl -fL --retry 3 'https://d2jqrm6oza8nb6.cloudfront.net/datasets/5f32e983-b4ff-4dea-ab30-2197a1b04480.png?_jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlIYXNoIjoiOWNhOTU0YzdjZGY0YzQ1ZCIsImJ1Y2tldCI6InJ1bndheS1kYXRhc2V0cyIsInN0YWdlIjoicHJvZCIsImV4cCI6MTc4OTkxNzM4M30.TmG-DV9Ru86LQp9oefRVfUllcz78VmLdUJp8P6nH-1A' -o work/assets/www/icons1160/pink-perfume.png
+          curl -fL --retry 3 'https://d2jqrm6oza8nb6.cloudfront.net/datasets/f62d1916-519a-433d-a302-617d4297b524.png?_jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlIYXNoIjoiMWRiOGYxMDljZmZjNjIyZiIsImJ1Y2tldCI6InJ1bndheS1kYXRhc2V0cyIsInN0YWdlIjoicHJvZCIsImV4cCI6MTc4OTk5Mzk5M30.tXQxAJYMlogUWMbrQ_P6SuLjGeo30KJJupx2Fi5FtPQ' -o work/assets/www/icons1160/purple-perfume.png
+          curl -fL --retry 3 'https://d2jqrm6oza8nb6.cloudfront.net/datasets/68eace81-c86a-4fd7-94a3-1edd015daf20.png?_jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlIYXNoIjoiODBiZDU3ODUwZTQ5ZTBhYyIsImJ1Y2tldCI6InJ1bndheS1kYXRhc2V0cyIsInN0YWdlIjoicHJvZCIsImV4cCI6MTc4OTkyNzU1N30.HG85sV5h03Je2mJI6fqOjOlpgOHvvXjjH8eK7V5LtRY' -o work/assets/www/icons1160/blue-perfume.png
+          curl -fL --retry 3 'https://d2jqrm6oza8nb6.cloudfront.net/datasets/77227ed9-5de2-4031-860e-11ed8a4b8d17.png?_jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlIYXNoIjoiYzljNTFlZDJkMWRkMTUwYiIsImJ1Y2tldCI6InJ1bndheS1kYXRhc2V0cyIsInN0YWdlIjoicHJvZCIsImV4cCI6MTc4OTkzNTY5OH0.iW4B99QXXxwcuq-nf94YrcdJEvmS21c44toS0-mY7KU' -o work/assets/www/icons1160/pink-purse.png
+          curl -fL --retry 3 'https://d2jqrm6oza8nb6.cloudfront.net/datasets/373275ab-3b36-409f-a4b0-6e0fa221d669.png?_jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlIYXNoIjoiYTQ3OTZiYTk1MjZiY2FkZiIsImJ1Y2tldCI6InJ1bndheS1kYXRhc2V0cyIsInN0YWdlIjoicHJvZCIsImV4cCI6MTc4OTkyNjQ0MX0.LLdeQoIhSHxdQ0LhJvI_n6FYm7R4AU2Ksh5MgxnFcxM' -o work/assets/www/icons1160/pink-heel.png
+          curl -fL --retry 3 'https://d2jqrm6oza8nb6.cloudfront.net/datasets/5b90bb87-d12c-4018-93a2-08d7a20e142c.png?_jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlIYXNoIjoiZTg2ZWRiMTY0ZTNhMzQ1MyIsImJ1Y2tldCI6InJ1bndheS1kYXRhc2V0cyIsInN0YWdlIjoicHJvZCIsImV4cCI6MTc4OTk1MDM1OH0.nsaal9cCJ_PMkC16Br-_F51bduRwvue2kSrP_27HRfE' -o work/assets/www/icons1160/crown-lipstick.png
+          curl -fL --retry 3 'https://d2jqrm6oza8nb6.cloudfront.net/datasets/21906038-7d64-40cc-8c21-2115c2fab3d1.png?_jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlIYXNoIjoiYjYzZGM5MDYyMGU0YmU1ZiIsImJ1Y2tldCI6InJ1bndheS1kYXRhc2V0cyIsInN0YWdlIjoicHJvZCIsImV4cCI6MTc4OTkyODA3MH0.LJuQN4vhvnCvWVq9QzU_aXZ_IQgm7pooHEj3lJKoTEk' -o work/assets/www/icons1160/heart-compact.png
+          curl -fL --retry 3 'https://d2jqrm6oza8nb6.cloudfront.net/datasets/0abe05b3-bf31-45fa-ae13-d45f99511544.png?_jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlIYXNoIjoiZjE2ZjhiNzNlZWI1OWNiNSIsImJ1Y2tldCI6InJ1bndheS1kYXRhc2V0cyIsInN0YWdlIjoicHJvZCIsImV4cCI6MTc4OTk2MzI1MX0.SRmdSECDWuwzhWV_j2ejTEYoXas1D6DR-HFul9e-cyg' -o work/assets/www/icons1160/blue-controller.png
+          curl -fL --retry 3 'https://d2jqrm6oza8nb6.cloudfront.net/datasets/822529e8-8812-4db5-a63e-a3f63e2978ac.png?_jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlIYXNoIjoiNjA1MzNiZWI1ZjM4ZjZkZiIsImJ1Y2tldCI6InJ1bndheS1kYXRhc2V0cyIsInN0YWdlIjoicHJvZCIsImV4cCI6MTc4OTk5MDc2M30.E8G-eI0Vf9GshsfFpVIi_HY0e0KIrJuE6eNagnpFEmY' -o work/assets/www/icons1160/crown-football.png
+          curl -fL --retry 3 'https://d2jqrm6oza8nb6.cloudfront.net/datasets/af4396e6-35ae-49f2-be26-db25763131fd.png?_jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlIYXNoIjoiMjUyMzljODg4ZjhlMWNlNSIsImJ1Y2tldCI6InJ1bndheS1kYXRhc2V0cyIsInN0YWdlIjoicHJvZCIsImV4cCI6MTc4OTkyMjgyNH0.spdiVap6DUuffnfQG_Obnu6kOWNG_KX4X-8Z48q1eng' -o work/assets/www/icons1160/blue-watch.png
+          curl -fL --retry 3 'https://d2jqrm6oza8nb6.cloudfront.net/datasets/2ec9b4d1-b475-4e94-861f-213665832f94.png?_jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlIYXNoIjoiMzY3OTYwYWQwZGQzZDg5YSIsImJ1Y2tldCI6InJ1bndheS1kYXRhc2V0cyIsInN0YWdlIjoicHJvZCIsImV4cCI6MTc4OTkzMzg2OX0.bnplmw6UraugDRPFXyhofxk1rlsv-FUfTTH6mIbFXgA' -o work/assets/www/icons1160/pink-watch.png
+
+          cat > icon-sha256.txt <<'EOF'
+          721ea384c5f6f2b8dfd6c240a2624bda302c49109312625e3e2c01c942ea8dee  work/assets/www/icons1160/glam-lipstick.png
+          870e8fe8b03aac11c1d5fe3bcc3baf5d582f66f5c8971289955f3646fa326043  work/assets/www/icons1160/pink-perfume.png
+          50b248b68bf80de5cdc1e3656408a06af049c45a4f9ead9e8a98d5f9f59c8552  work/assets/www/icons1160/purple-perfume.png
+          d6294919b8b1d16db6a6cac3a4d4e97955ad394fd45534dbea2f0df4195ab521  work/assets/www/icons1160/blue-perfume.png
+          509f2925fa07a977a7203dd15b88a7c3aa6397a25abc3403770618dde37974e9  work/assets/www/icons1160/pink-purse.png
+          8e5f41b6cd35d1540852ef8efdf47de5a372f6949559a87c1418b59e0d563cb2  work/assets/www/icons1160/pink-heel.png
+          d697311975ce6741c7d4793d5e3021c1943f8d5ffe1a29ee05851a3752c0a231  work/assets/www/icons1160/crown-lipstick.png
+          e1d8324a2c949ed24eab27a225d9c652b21970a3109d169614808aa2d7793cf0  work/assets/www/icons1160/heart-compact.png
+          02ebb0bbb131cf8e1ea38f4d710d75fa24dc77acaf37fc9420496d48d99edca5  work/assets/www/icons1160/blue-controller.png
+          eaf21bca8f8d30e6c7861482ae7c0f4e88c5f1f0d10556ef2eae1d7bc6edf4ce  work/assets/www/icons1160/crown-football.png
+          62d45620aab74deaaecfe3a76418c5078cef89379bc1482a8dc6d2eb2f4234bc  work/assets/www/icons1160/blue-watch.png
+          70d19554738c7290cf8ba83122093ec73ead85ac7186411d8db726a76f9d3ab7  work/assets/www/icons1160/pink-watch.png
+          EOF
+          sed -i 's/^          //' icon-sha256.txt
+          sha256sum -c icon-sha256.txt
+
+          python3 - <<'PY'
+          import struct
+          from pathlib import Path
+          for p in Path('work/assets/www/icons1160').glob('*.png'):
+              b=p.read_bytes()
+              assert b[:8] == b'\x89PNG\r\n\x1a\n', p
+              assert struct.unpack('>II',b[16:24]) == (320,320), (p,struct.unpack('>II',b[16:24]))
+              assert b[25] in (4,6), (p,b[25])
+          print('All 12 new icons are 320x320 PNGs with alpha.')
+          PY
+
+      - name: Expand campaign to 200 levels
+        run: |
+          set -euo pipefail
+          python3 release-tools/alpha-11.6.0/prepare.py work/assets/www
+          node --check work/assets/www/wam-campaign.js
+          node --check work/assets/www/gameplay-1150.js
+          node --check work/assets/www/background-1155.js
+          node --check work/assets/www/layout-1156.js
+          node --check work/assets/www/counter-align-1157.js
+          node --check work/assets/www/counter-optical-1158.js
+
+      - name: Verify Levels 1-100 remain unchanged and 101-200 are valid
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs=require('fs'),vm=require('vm');
+          function load(file){
+            const ctx={window:{},console};vm.createContext(ctx);
+            vm.runInContext(fs.readFileSync(file,'utf8'),ctx);
+            return ctx.window.WamCampaign;
+          }
+          const before=load('wam-campaign.js.before');
+          const after=load('work/assets/www/wam-campaign.js');
+          if(before.TOTAL!==100)throw new Error('Base campaign is not 100 levels');
+          if(after.TOTAL!==200)throw new Error('Expanded campaign is not 200 levels');
+          if(after.AREAS.length!==20)throw new Error('Expected 20 campaign areas');
+          if(JSON.stringify(before.levels)!==JSON.stringify(after.levels.slice(0,100)))throw new Error('Levels 1-100 changed');
+          const keys=['glam_lipstick','pink_perfume','purple_perfume','blue_perfume','pink_purse','pink_heel','crown_lipstick','heart_compact','blue_controller','crown_football','blue_watch','pink_watch'];
+          for(const k of keys){
+            if(!after.PIECES[k])throw new Error('Missing piece '+k);
+            if(!after.levels.slice(100).some(l=>l.palette.includes(k)))throw new Error('New piece is not used on Levels 101-200: '+k);
+          }
+          for(let id=101;id<=200;id++){
+            const l=after.level(id);
+            if(l.id!==id)throw new Error('Bad level id '+id);
+            if(!l.mask||!l.palette||l.palette.length!==5)throw new Error('Bad board/palette '+id);
+            if(l.background!=='artwork/wambam-level1-bg.jpg')throw new Error('Wrong background '+id);
+            if(Object.keys(l.targets).length!==3)throw new Error('Expected 3 goals '+id);
+            if(l.moves<28||l.moves>45)throw new Error('Bad moves '+id);
+          }
+          console.log('Verified:',after.VERSION,'TOTAL',after.TOTAL,'AREAS',after.AREAS.length,'new pieces',keys.length);
+          console.log('Level 101:',after.level(101).name,after.level(101).targets);
+          console.log('Level 200:',after.level(200).name,after.level(200).targets);
+          NODE
+
+          cmp -s wam-engine.js.before work/assets/www/wam-engine.js
+          cmp -s wam-ui.js.before work/assets/www/wam-ui.js
+          cmp -s wam-map.js.before work/assets/www/wam-map.js
+          cmp -s gameplay-1140.js.before work/assets/www/gameplay-1140.js
+          cmp -s gameplay-1142.js.before work/assets/www/gameplay-1142.js
+          cmp -s gameplay-1151.js.before work/assets/www/gameplay-1151.js
+          cmp -s goals-1154.js.before work/assets/www/goals-1154.js
+          cmp -s transition-1159.js.before work/assets/www/transition-1159.js
+          cmp -s reaction-11510.js.before work/assets/www/reaction-11510.js
+
+          grep -Fq 'STANDARD_MIN=11,STANDARD_MAX=200' work/assets/www/gameplay-1150.js
+          grep -Fq 'bid(v)>=1&&bid(v)<=200' work/assets/www/gameplay-1150.js
+          grep -Fq 'const MAX_LEVEL=200;' work/assets/www/background-1155.js
+          grep -Fq 'const MIN=11,MAX=200;' work/assets/www/layout-1156.js
+          grep -Fq 'const MIN=11,MAX=200;' work/assets/www/counter-align-1157.js
+          grep -Fq 'const MIN=11,MAX=200;' work/assets/www/counter-optical-1158.js
+
+      - name: Set Android version 11.6.0
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('work/apktool.yml')
+          s=p.read_text()
+          s,n=re.subn(r'(?m)^(\s*versionCode:\s*).+$',r'\g<1>116000',s,count=1)
+          s,m=re.subn(r'(?m)^(\s*versionName:\s*).+$',r'\g<1>11.6.0',s,count=1)
+          assert n==m==1
+          p.write_text(s)
+          PY
+
+      - name: Build production APK
+        run: |
+          set -euo pipefail
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'build-tools;35.0.0'
+          java -jar apktool.jar b work -o WamBam-11.6.0-unsigned.apk
+
+      - name: Sign permanently and inspect packaged APK
+        env:
+          WB_KEYSTORE_B64: ${{ secrets.WB_KEYSTORE_B64 }}
+          WB_KEYSTORE_PASSWORD: ${{ secrets.WB_KEYSTORE_PASSWORD }}
+          WB_KEY_ALIAS: ${{ secrets.WB_KEY_ALIAS }}
+          WB_KEY_PASSWORD: ${{ secrets.WB_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for value in WB_KEYSTORE_B64 WB_KEYSTORE_PASSWORD WB_KEY_ALIAS WB_KEY_PASSWORD; do
+            test -n "${!value:-}" || exit 1
+          done
+
+          printf '%s' "$WB_KEYSTORE_B64" | base64 -d > release.keystore
+          trap 'rm -f release.keystore' EXIT
+
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/zipalign" -f 4 WamBam-11.6.0-unsigned.apk aligned.apk
+          "$BT/apksigner" sign             --ks release.keystore             --ks-pass env:WB_KEYSTORE_PASSWORD             --ks-key-alias "$WB_KEY_ALIAS"             --key-pass env:WB_KEY_PASSWORD             --out WamBam_Alpha_11.6.0_Levels101-200_NewPieces.apk             aligned.apk
+
+          "$BT/apksigner" verify --verbose --print-certs WamBam_Alpha_11.6.0_Levels101-200_NewPieces.apk > signature.txt
+          "$BT/apksigner" verify --print-certs base.apk > base-signature.txt
+          NEW="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' signature.txt)"
+          BASE="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' base-signature.txt)"
+          test "$NEW" = 'd04c069c47d1642c83243de681e62bfd1a5c996816ab0c7b15dea82a91338ad1'
+          test "$NEW" = "$BASE"
+
+          "$BT/aapt" dump badging WamBam_Alpha_11.6.0_Levels101-200_NewPieces.apk > package.txt
+          grep -q "package: name='com.macca.wambamthankumam' versionCode='116000' versionName='11.6.0'" package.txt
+
+          unzip -p WamBam_Alpha_11.6.0_Levels101-200_NewPieces.apk assets/www/wam-campaign.js > campaign-packaged.js
+          cmp -s work/assets/www/wam-campaign.js campaign-packaged.js
+          node --check campaign-packaged.js
+
+          for f in wam-engine.js wam-ui.js wam-map.js gameplay-1140.js gameplay-1142.js gameplay-1151.js goals-1154.js transition-1159.js reaction-11510.js; do
+            unzip -p WamBam_Alpha_11.6.0_Levels101-200_NewPieces.apk "assets/www/$f" > "$f.packaged"
+            cmp -s "$f.before" "$f.packaged"
+          done
+
+          for f in gameplay-1150.js background-1155.js layout-1156.js counter-align-1157.js counter-optical-1158.js; do
+            unzip -p WamBam_Alpha_11.6.0_Levels101-200_NewPieces.apk "assets/www/$f" > "$f.packaged"
+            cmp -s "work/assets/www/$f" "$f.packaged"
+          done
+
+          while read -r hash path; do
+            name="$(basename "$path")"
+            unzip -p WamBam_Alpha_11.6.0_Levels101-200_NewPieces.apk "assets/www/icons1160/$name" > "packaged-$name"
+            echo "$hash  packaged-$name" | sha256sum -c -
+          done < icon-sha256.txt
+
+          unzip -p WamBam_Alpha_11.6.0_Levels101-200_NewPieces.apk assets/www/artwork/wambam-level1-bg.jpg > level-style-bg.jpg
+          test -s level-style-bg.jpg
+
+          node - <<'NODE'
+          const fs=require('fs'),vm=require('vm');
+          const ctx={window:{},console};vm.createContext(ctx);
+          vm.runInContext(fs.readFileSync('campaign-packaged.js','utf8'),ctx);
+          const C=ctx.window.WamCampaign;
+          if(C.TOTAL!==200||C.AREAS.length!==20)throw new Error('Packaged campaign expansion missing');
+          for(let id=101;id<=200;id++)if(C.level(id).background!=='artwork/wambam-level1-bg.jpg')throw new Error('Packaged background mismatch '+id);
+          console.log('Packaged campaign verified through Level 200.');
+          NODE
+
+          sha256sum WamBam_Alpha_11.6.0_Levels101-200_NewPieces.apk > SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WamBam-Alpha-11.6.0-Production
+          path: |
+            WamBam_Alpha_11.6.0_Levels101-200_NewPieces.apk
+            SHA256SUMS.txt
+            signature.txt
+            base-signature.txt
+            package.txt
+          retention-days: 30
+
+      - name: Publish Alpha 11.6.0
+        if: github.ref == 'refs/heads/wam-11.6.0'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v11.6.0
+          target_commitish: wam-11.6.0
+          name: Wam Bam Alpha 11.6.0 - 200 Levels and New Pieces
+          prerelease: true
+          body: |
+            Major Wam Bam campaign expansion built directly from signed Alpha 11.5.10.
+
+            Campaign:
+            - Adds Levels 101-200 for a total of 200 playable campaign levels.
+            - Levels 101-200 use the same polished Wam Bam gameplay presentation and background system as the early campaign.
+            - Ten new 10-level areas are added to the map.
+            - New levels rotate board shapes, targets, moves, blockers and difficulty.
+            - Levels 1-100 are verified unchanged.
+            - Level 10 Frankie Flash boss logic and layout patches remain unchanged.
+
+            New transparent match pieces:
+            - Glam lipstick
+            - Pink perfume
+            - Purple perfume
+            - Blue perfume
+            - Pink handbag
+            - Pink heel
+            - Crown lipstick
+            - Heart compact
+            - Blue controller
+            - Crowned football
+            - Blue watch
+            - Pink watch
+
+            Production identity:
+            - Package: com.macca.wambamthankumam
+            - Version: 11.6.0
+            - versionCode: 116000
+            - Permanent signing certificate matches Alpha 11.5.10.
+            - Existing saves and progression remain under the same package and signing identity.
+
+            CI verifies 200 levels, all twelve new pieces, preservation of Levels 1-100, package identity, permanent signing certificate and packaged assets. BlueStacks runtime testing is still required before the new Levels 101-200 screen layout is visually confirmed.
+          files: |
+            WamBam_Alpha_11.6.0_Levels101-200_NewPieces.apk
+            SHA256SUMS.txt
