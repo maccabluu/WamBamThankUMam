@@ -1,0 +1,258 @@
+name: Wam Bam Alpha 11.6.2 Testing Level Fixes
+
+on:
+  push:
+    branches: [wam-11.6.2]
+    paths:
+      - '.github/workflows/alpha-11-6-2.yml'
+      - 'release-tools/alpha-11.6.2/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wam-11-6-2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: wam-11.6.2
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Verify patch source
+        run: |
+          set -euo pipefail
+          test -f release-tools/alpha-11.6.2/prepare.py
+          python3 -m py_compile release-tools/alpha-11.6.2/prepare.py
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -perm -111 | head -n1 || true)"
+          fi
+          test -x "$SDKMANAGER"
+          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
+
+      - name: Download signed Alpha 11.6.1 production lineage
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o base.apk https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.6.1/WamBam_Alpha_11.6.1_All_Levels_Testing_Unlocked.apk
+          echo '81693759da1fc7db1945b4a54452219464fe2bcb752af153d80160da0e0d3ec5  base.apk' | sha256sum -c -
+
+          curl -fL --retry 3 -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          java -jar apktool.jar d -f base.apk -o work
+
+          for f in wam-campaign.js wam-engine.js wam-ui.js wam-map.js gameplay-1140.js gameplay-1142.js gameplay-1150.js gameplay-1151.js goals-1154.js background-1155.js layout-1156.js counter-align-1157.js counter-optical-1158.js transition-1159.js reaction-11510.js; do
+            test -f "work/assets/www/$f"
+            cp "work/assets/www/$f" "$f.before"
+          done
+
+      - name: Apply testing selection fixes
+        run: |
+          set -euo pipefail
+          python3 release-tools/alpha-11.6.2/prepare.py work/assets/www
+          node --check work/assets/www/wam-campaign.js
+          node --check work/assets/www/wam-map.js
+
+      - name: Verify Level 195 launches as Level 195
+        run: |
+          set -euo pipefail
+
+          node - <<'NODE'
+          const fs=require('fs'),vm=require('vm');
+
+          function makeStorage(initial={}){
+            const data=new Map(Object.entries(initial).map(([k,v])=>[k,String(v)]));
+            return {
+              getItem:k=>data.has(k)?data.get(k):null,
+              setItem:(k,v)=>data.set(k,String(v)),
+              dump:()=>Object.fromEntries(data)
+            };
+          }
+
+          const ctx={window:{},console};
+          vm.createContext(ctx);
+          vm.runInContext(fs.readFileSync('work/assets/www/wam-campaign.js','utf8'),ctx);
+          const C=ctx.window.WamCampaign;
+
+          if(C.TOTAL!==200) throw new Error('Campaign total changed');
+
+          const storage=makeStorage({
+            'wambam-completed-level':22,
+            'wambam-unlocked-level':23,
+            'wambam-selected-level':195
+          });
+
+          const before=C.progress(storage);
+          if(before.unlocked!==23) throw new Error('Real unlock changed before test');
+          if(before.selected!==195) throw new Error('Selected Level 195 was clamped to '+before.selected);
+
+          const cfg=C.level(before.selected);
+          if(cfg.id!==195) throw new Error('Game would launch '+cfg.id+' instead of 195');
+
+          C.complete(storage,cfg,8,10000);
+          const after=C.progress(storage);
+          if(after.unlocked!==23) throw new Error('Testing Level 195 changed real unlock to '+after.unlocked);
+          if(after.highest!==22) throw new Error('Testing Level 195 changed real completed progress to '+after.highest);
+          if(C.read(storage,'wambam-stars-195',0)!==0) throw new Error('Testing Level 195 persisted stars');
+          if(after.selected!==196) throw new Error('Testing completion should move test selection to 196');
+
+          const normal=makeStorage({
+            'wambam-completed-level':22,
+            'wambam-unlocked-level':23,
+            'wambam-selected-level':23
+          });
+          C.complete(normal,C.level(23),8,10000);
+          const normalAfter=C.progress(normal);
+          if(normalAfter.unlocked!==24 || normalAfter.highest!==23) throw new Error('Normal progression stopped working');
+
+          console.log('Verified Level 195 selection and temporary testing progression protection.');
+          NODE
+
+          grep -Fq "this.playButton=button(`PLAY LEVEL ${this.selected}`" work/assets/www/wam-map.js
+          grep -Fq "syncPlayButton()" work/assets/www/wam-map.js
+          grep -Fq "this.selected=id;this.syncPlayButton();" work/assets/www/wam-map.js
+          grep -Fq "const selected = clamp(read(storage,'wambam-selected-level',unlocked),1,TOTAL);" work/assets/www/wam-campaign.js
+          grep -Fq "const testingAhead = config.id > old.unlocked;" work/assets/www/wam-campaign.js
+
+          for f in wam-engine.js wam-ui.js gameplay-1140.js gameplay-1142.js gameplay-1150.js gameplay-1151.js goals-1154.js background-1155.js layout-1156.js counter-align-1157.js counter-optical-1158.js transition-1159.js reaction-11510.js; do
+            cmp -s "$f.before" "work/assets/www/$f"
+          done
+
+      - name: Set Android version 11.6.2
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('work/apktool.yml')
+          s=p.read_text()
+          s,n=re.subn(r'(?m)^(\s*versionCode:\s*).+$',r'\g<1>116002',s,count=1)
+          s,m=re.subn(r'(?m)^(\s*versionName:\s*).+$',r'\g<1>11.6.2',s,count=1)
+          assert n==m==1
+          p.write_text(s)
+          PY
+
+      - name: Build production APK
+        run: |
+          set -euo pipefail
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'build-tools;35.0.0'
+          java -jar apktool.jar b work -o WamBam-11.6.2-unsigned.apk
+
+      - name: Sign permanently and inspect packaged APK
+        env:
+          WB_KEYSTORE_B64: ${{ secrets.WB_KEYSTORE_B64 }}
+          WB_KEYSTORE_PASSWORD: ${{ secrets.WB_KEYSTORE_PASSWORD }}
+          WB_KEY_ALIAS: ${{ secrets.WB_KEY_ALIAS }}
+          WB_KEY_PASSWORD: ${{ secrets.WB_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          for value in WB_KEYSTORE_B64 WB_KEYSTORE_PASSWORD WB_KEY_ALIAS WB_KEY_PASSWORD; do
+            test -n "${!value:-}" || exit 1
+          done
+
+          printf '%s' "$WB_KEYSTORE_B64" | base64 -d > release.keystore
+          trap 'rm -f release.keystore' EXIT
+
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/zipalign" -f 4 WamBam-11.6.2-unsigned.apk aligned.apk
+
+          "$BT/apksigner" sign             --ks release.keystore             --ks-pass env:WB_KEYSTORE_PASSWORD             --ks-key-alias "$WB_KEY_ALIAS"             --key-pass env:WB_KEY_PASSWORD             --out WamBam_Alpha_11.6.2_Test_Level_Selection_Fix.apk             aligned.apk
+
+          "$BT/apksigner" verify --verbose --print-certs WamBam_Alpha_11.6.2_Test_Level_Selection_Fix.apk > signature.txt
+          "$BT/apksigner" verify --print-certs base.apk > base-signature.txt
+
+          NEW="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' signature.txt)"
+          BASE="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' base-signature.txt)"
+          test "$NEW" = 'd04c069c47d1642c83243de681e62bfd1a5c996816ab0c7b15dea82a91338ad1'
+          test "$NEW" = "$BASE"
+
+          "$BT/aapt" dump badging WamBam_Alpha_11.6.2_Test_Level_Selection_Fix.apk > package.txt
+          grep -q "package: name='com.macca.wambamthankumam' versionCode='116002' versionName='11.6.2'" package.txt
+
+          unzip -p WamBam_Alpha_11.6.2_Test_Level_Selection_Fix.apk assets/www/wam-campaign.js > campaign-packaged.js
+          unzip -p WamBam_Alpha_11.6.2_Test_Level_Selection_Fix.apk assets/www/wam-map.js > map-packaged.js
+          cmp -s work/assets/www/wam-campaign.js campaign-packaged.js
+          cmp -s work/assets/www/wam-map.js map-packaged.js
+          node --check campaign-packaged.js
+          node --check map-packaged.js
+
+          node - <<'NODE'
+          const fs=require('fs'),vm=require('vm');
+          const ctx={window:{},console};vm.createContext(ctx);
+          vm.runInContext(fs.readFileSync('campaign-packaged.js','utf8'),ctx);
+          const C=ctx.window.WamCampaign;
+          const data=new Map([
+            ['wambam-completed-level','22'],
+            ['wambam-unlocked-level','23'],
+            ['wambam-selected-level','195']
+          ]);
+          const storage={getItem:k=>data.has(k)?data.get(k):null,setItem:(k,v)=>data.set(k,String(v))};
+          if(C.progress(storage).selected!==195) throw new Error('Packaged APK still clamps Level 195');
+          C.complete(storage,C.level(195),8,10000);
+          if(C.progress(storage).unlocked!==23 || C.progress(storage).highest!==22) throw new Error('Packaged APK corrupts real progress during future-level test');
+          console.log('Packaged APK Level 195 test path verified.');
+          NODE
+
+          grep -Fq "this.playButton=button(`PLAY LEVEL ${this.selected}`" map-packaged.js
+          grep -Fq "this.selected=id;this.syncPlayButton();" map-packaged.js
+
+          sha256sum WamBam_Alpha_11.6.2_Test_Level_Selection_Fix.apk > SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WamBam-Alpha-11.6.2-Production
+          path: |
+            WamBam_Alpha_11.6.2_Test_Level_Selection_Fix.apk
+            SHA256SUMS.txt
+            signature.txt
+            base-signature.txt
+            package.txt
+          retention-days: 30
+
+      - name: Publish Alpha 11.6.2
+        if: github.ref == 'refs/heads/wam-11.6.2'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v11.6.2
+          target_commitish: wam-11.6.2
+          name: Wam Bam Alpha 11.6.2 - Test Level Selection Fix
+          prerelease: false
+          make_latest: true
+          body: |
+            Fixes the problems shown in the testing video.
+
+            Fixed:
+            - Choosing a high testing level such as Level 195 now launches that exact level instead of falling back to the player's real next level.
+            - The tutorial and gameplay now use the chosen testing level.
+            - The map bottom PLAY LEVEL button follows the currently selected testing level instead of staying stuck on the player's normal progression level.
+            - Testing a future level no longer advances the player's real completed-level or unlocked-level progress.
+            - Future-level testing does not persist stars or completion progress.
+            - Normal progression still works when playing the player's genuine next level.
+
+            Kept:
+            - All Levels 1-200 remain selectable for development testing.
+            - Levels 101-200 and the new transparent pieces remain intact.
+            - Frankie Flash Level 10 remains intact.
+            - Existing saves, boosters and normal player progress remain under the same package.
+            - Permanent signing certificate remains unchanged.
+
+            Package: com.macca.wambamthankumam
+            Version: 11.6.2
+            versionCode: 116002
+
+            CI verifies the exact Level 195 selection path, normal Level 23 progression, temporary test progression protection, package identity, signing certificate and packaged APK files. BlueStacks runtime testing is still required for the final visual confirmation.
+          files: |
+            WamBam_Alpha_11.6.2_Test_Level_Selection_Fix.apk
+            SHA256SUMS.txt
