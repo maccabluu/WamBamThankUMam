@@ -2,18 +2,18 @@
 
 Native Android match-3 game in Alpha by BluStudio.
 
-## Latest Android build: Alpha 11.6.3 Map Order Fix
+## Latest Android build: Alpha 11.6.4 Level 100-200 Label Fit
 
-- [Download Wam Bam Alpha 11.6.3 APK](https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.6.3/WamBam_Alpha_11.6.3_Map_Order_Fix.apk)
-- [Open the Alpha 11.6.3 release](https://github.com/maccabluu/WamBamThankUMam/releases/tag/v11.6.3)
+- [Download Wam Bam Alpha 11.6.4 APK](https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.6.4/WamBam_Alpha_11.6.4_Level100-200_Label_Fit.apk)
+- [Open the Alpha 11.6.4 release](https://github.com/maccabluu/WamBamThankUMam/releases/tag/v11.6.4)
 
-Alpha 11.6.3 fixes the campaign map ordering. Levels now appear in strict numerical order, with Level 101 directly after Level 100, continuing through Level 200.
+Alpha 11.6.4 fixes the three-digit level label shown in the latest screenshot. Levels 100 through 200 now stay on one line inside the gold LEVEL box instead of wrapping underneath.
 
 Android package: `com.macca.wambamthankumam`
 
-Version: `11.6.3`
+Version: `11.6.4`
 
-Version code: `116003`
+Version code: `116004`
 
 Signing certificate SHA-256: `d04c069c47d1642c83243de681e62bfd1a5c996816ab0c7b15dea82a91338ad1`
 
@@ -22,6 +22,7 @@ The build keeps the permanent Wam Bam signing identity so it installs over the p
 ## Current game features
 
 - 200 campaign levels
+- Level labels 100-200 fit inside the gold level box
 - Strict map order from Level 1 through Level 200
 - Level 101 follows Level 100
 - Temporary testing access to Levels 1-200
@@ -58,12 +59,11 @@ Alpha 11.6.0 added twelve new transparent match pieces:
 
 ## Recent releases
 
+- [Alpha 11.6.4 - Level 100-200 Label Fit](https://github.com/maccabluu/WamBamThankUMam/releases/tag/v11.6.4)
 - [Alpha 11.6.3 - Map Order Fix](https://github.com/maccabluu/WamBamThankUMam/releases/tag/v11.6.3)
 - [Alpha 11.6.2 - Test Level Selection Fix](https://github.com/maccabluu/WamBamThankUMam/releases/tag/v11.6.2)
 - [Alpha 11.6.1 - All Levels Testing Unlock](https://github.com/maccabluu/WamBamThankUMam/releases/tag/v11.6.1)
 - [Alpha 11.6.0 - 200 Levels and New Pieces](https://github.com/maccabluu/WamBamThankUMam/releases/tag/v11.6.0)
-- [Alpha 11.5.10 - Frankie Message Position](https://github.com/maccabluu/WamBamThankUMam/releases/tag/v11.5.10)
-- [Alpha 11.5.9 - Level Transition Flash Fix](https://github.com/maccabluu/WamBamThankUMam/releases/tag/v11.5.9)
 
 ## Testing note
 
