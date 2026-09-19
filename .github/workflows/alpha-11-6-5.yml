@@ -1,0 +1,196 @@
+name: Wam Bam Alpha 11.6.5 Map Number Fit
+
+on:
+  push:
+    branches: [wam-11.6.5]
+    paths:
+      - '.github/workflows/alpha-11-6-5.yml'
+      - 'release-tools/alpha-11.6.5/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wam-11-6-5-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: wam-11.6.5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Verify patch source
+        run: |
+          set -euo pipefail
+          test -f release-tools/alpha-11.6.5/prepare.py
+          python3 -m py_compile release-tools/alpha-11.6.5/prepare.py
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -perm -111 | head -n1 || true)"
+          fi
+          test -x "$SDKMANAGER"
+          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
+
+      - name: Download signed Alpha 11.6.4 production lineage
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o base.apk https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.6.4/WamBam_Alpha_11.6.4_Level100-200_Label_Fit.apk
+          echo '01f15ffbd834cf1633fe5fe4de27ddbca6f66141217dbd0c519ed05ce332b1d7  base.apk' | sha256sum -c -
+
+          curl -fL --retry 3 -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          java -jar apktool.jar d -f base.apk -o work
+
+          for f in wam-campaign.js wam-engine.js wam-ui.js wam-map.js gameplay-1140.js gameplay-1142.js gameplay-1150.js gameplay-1151.js goals-1154.js background-1155.js layout-1156.js counter-align-1157.js counter-optical-1158.js transition-1159.js reaction-11510.js; do
+            test -f "work/assets/www/$f"
+            cp "work/assets/www/$f" "$f.before"
+          done
+
+      - name: Fix map three-digit labels
+        run: |
+          set -euo pipefail
+          python3 release-tools/alpha-11.6.5/prepare.py work/assets/www
+          node --check work/assets/www/wam-map.js
+
+      - name: Verify map number fitting rules
+        run: |
+          set -euo pipefail
+
+          grep -Fq "area.from>=101" work/assets/www/wam-map.js
+          grep -Fq "wam-three-range" work/assets/www/wam-map.js
+          grep -Fq "font-size:18px!important" work/assets/www/wam-map.js
+          grep -Fq "white-space:nowrap!important" work/assets/www/wam-map.js
+          grep -Fq "if(config.id>=100)node.classList.add('wam-three-digit')" work/assets/www/wam-map.js
+          grep -Fq ".wam-map-node.wam-three-digit{font-size:27px!important" work/assets/www/wam-map.js
+          grep -Fq "display:flex!important;align-items:center!important;justify-content:center!important" work/assets/www/wam-map.js
+          grep -Fq "wam-three-digit-picker" work/assets/www/wam-map.js
+
+          for f in wam-campaign.js wam-engine.js wam-ui.js gameplay-1140.js gameplay-1142.js gameplay-1150.js gameplay-1151.js goals-1154.js background-1155.js layout-1156.js counter-align-1157.js counter-optical-1158.js transition-1159.js reaction-11510.js; do
+            cmp -s "$f.before" "work/assets/www/$f"
+          done
+
+          ! cmp -s wam-map.js.before work/assets/www/wam-map.js
+
+      - name: Set Android version 11.6.5
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('work/apktool.yml')
+          s=p.read_text()
+          s,n=re.subn(r'(?m)^(\s*versionCode:\s*).+$',r'\g<1>116005',s,count=1)
+          s,m=re.subn(r'(?m)^(\s*versionName:\s*).+$',r'\g<1>11.6.5',s,count=1)
+          assert n==m==1
+          p.write_text(s)
+          PY
+
+      - name: Build production APK
+        run: |
+          set -euo pipefail
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'build-tools;35.0.0'
+          java -jar apktool.jar b work -o WamBam-11.6.5-unsigned.apk
+
+      - name: Sign permanently and inspect packaged APK
+        env:
+          WB_KEYSTORE_B64: ${{ secrets.WB_KEYSTORE_B64 }}
+          WB_KEYSTORE_PASSWORD: ${{ secrets.WB_KEYSTORE_PASSWORD }}
+          WB_KEY_ALIAS: ${{ secrets.WB_KEY_ALIAS }}
+          WB_KEY_PASSWORD: ${{ secrets.WB_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          for value in WB_KEYSTORE_B64 WB_KEYSTORE_PASSWORD WB_KEY_ALIAS WB_KEY_PASSWORD; do
+            test -n "${!value:-}" || exit 1
+          done
+
+          printf '%s' "$WB_KEYSTORE_B64" | base64 -d > release.keystore
+          trap 'rm -f release.keystore' EXIT
+
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/zipalign" -f 4 WamBam-11.6.5-unsigned.apk aligned.apk
+
+          "$BT/apksigner" sign             --ks release.keystore             --ks-pass env:WB_KEYSTORE_PASSWORD             --ks-key-alias "$WB_KEY_ALIAS"             --key-pass env:WB_KEY_PASSWORD             --out WamBam_Alpha_11.6.5_Map_Number_Fit.apk             aligned.apk
+
+          "$BT/apksigner" verify --verbose --print-certs WamBam_Alpha_11.6.5_Map_Number_Fit.apk > signature.txt
+          "$BT/apksigner" verify --print-certs base.apk > base-signature.txt
+
+          NEW="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' signature.txt)"
+          BASE="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' base-signature.txt)"
+          test "$NEW" = 'd04c069c47d1642c83243de681e62bfd1a5c996816ab0c7b15dea82a91338ad1'
+          test "$NEW" = "$BASE"
+
+          "$BT/aapt" dump badging WamBam_Alpha_11.6.5_Map_Number_Fit.apk > package.txt
+          grep -q "package: name='com.macca.wambamthankumam' versionCode='116005' versionName='11.6.5'" package.txt
+
+          unzip -p WamBam_Alpha_11.6.5_Map_Number_Fit.apk assets/www/wam-map.js > map-packaged.js
+          cmp -s work/assets/www/wam-map.js map-packaged.js
+          node --check map-packaged.js
+
+          grep -Fq "wam-three-range" map-packaged.js
+          grep -Fq "wam-three-digit" map-packaged.js
+          grep -Fq "wam-three-digit-picker" map-packaged.js
+          grep -Fq "font-size:27px!important" map-packaged.js
+          grep -Fq "font-size:18px!important" map-packaged.js
+
+          sha256sum WamBam_Alpha_11.6.5_Map_Number_Fit.apk > SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WamBam-Alpha-11.6.5-Production
+          path: |
+            WamBam_Alpha_11.6.5_Map_Number_Fit.apk
+            SHA256SUMS.txt
+            signature.txt
+            base-signature.txt
+            package.txt
+          retention-days: 30
+
+      - name: Publish Alpha 11.6.5
+        if: github.ref == 'refs/heads/wam-11.6.5'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v11.6.5
+          target_commitish: wam-11.6.5
+          name: Wam Bam Alpha 11.6.5 - Map Number Fit
+          prerelease: false
+          make_latest: true
+          body: |
+            Fixes the three-digit numbers on the campaign map.
+
+            Fixed:
+            - Level circles from 100 through 200 use a smaller three-digit number style.
+            - Three-digit level numbers stay centred inside the pink circles.
+            - Numbers stay on one line and no longer crowd the circle edges.
+            - Area tabs from 101-110 through 191-200 stay on one line.
+            - Three-digit area range tabs use smaller text and centred alignment.
+            - The Level List also uses a smaller three-digit style for Levels 100-200.
+
+            Kept:
+            - Levels 1-99 keep their existing map sizing.
+            - Map order stays 1 through 200.
+            - Level 101 stays directly after Level 100.
+            - All-level testing access stays enabled.
+            - Existing saves, stars, boosters and normal progression protection remain.
+            - Frankie Flash Level 10 remains intact.
+            - Permanent signing certificate remains unchanged.
+
+            Package: com.macca.wambamthankumam
+            Version: 11.6.5
+            versionCode: 116005
+
+            CI verifies the packaged map styles, package identity and permanent signing certificate. BlueStacks runtime testing is still required for the final visual confirmation.
+          files: |
+            WamBam_Alpha_11.6.5_Map_Number_Fit.apk
+            SHA256SUMS.txt
