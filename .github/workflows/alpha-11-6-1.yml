@@ -1,0 +1,202 @@
+name: Wam Bam Alpha 11.6.1 Testing Unlock
+
+on:
+  push:
+    branches: [wam-11.6.1]
+    paths:
+      - '.github/workflows/alpha-11-6-1.yml'
+      - 'release-tools/alpha-11.6.1/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wam-11-6-1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: wam-11.6.1
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Verify patch source
+        run: |
+          set -euo pipefail
+          test -f release-tools/alpha-11.6.1/prepare.py
+          python3 -m py_compile release-tools/alpha-11.6.1/prepare.py
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -perm -111 | head -n1 || true)"
+          fi
+          test -x "$SDKMANAGER"
+          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
+
+      - name: Download signed Alpha 11.6.0 production lineage
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o base.apk https://github.com/maccabluu/WamBamThankUMam/releases/download/v11.6.0/WamBam_Alpha_11.6.0_Levels101-200_NewPieces.apk
+          echo '158a9f795fcd2cd4f01737bde0d038899de0a02551f0454acc6008b4b7950035  base.apk' | sha256sum -c -
+
+          curl -fL --retry 3 -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          java -jar apktool.jar d -f base.apk -o work
+
+          for f in wam-campaign.js wam-engine.js wam-ui.js wam-map.js gameplay-1140.js gameplay-1142.js gameplay-1150.js gameplay-1151.js goals-1154.js background-1155.js layout-1156.js counter-align-1157.js counter-optical-1158.js transition-1159.js reaction-11510.js; do
+            test -f "work/assets/www/$f"
+            cp "work/assets/www/$f" "$f.before"
+          done
+
+      - name: Unlock all levels for testing
+        run: |
+          set -euo pipefail
+          python3 release-tools/alpha-11.6.1/prepare.py work/assets/www
+          node --check work/assets/www/wam-map.js
+
+      - name: Verify temporary unlock only
+        run: |
+          set -euo pipefail
+
+          for f in wam-campaign.js wam-engine.js wam-ui.js gameplay-1140.js gameplay-1142.js gameplay-1150.js gameplay-1151.js goals-1154.js background-1155.js layout-1156.js counter-align-1157.js counter-optical-1158.js transition-1159.js reaction-11510.js; do
+            cmp -s "$f.before" "work/assets/www/$f"
+          done
+
+          ! cmp -s wam-map.js.before work/assets/www/wam-map.js
+
+          grep -Fq "const {x,y}=points[i],locked=false" work/assets/www/wam-map.js
+          grep -Fq "const config=C.level(id),locked=false" work/assets/www/wam-map.js
+          grep -Fq "C.levels.forEach(config=>{const locked=false" work/assets/www/wam-map.js
+          grep -Fq "start(id){if(this.disposed)return;" work/assets/www/wam-map.js
+
+          ! grep -Fq "locked=config.id>this.progress.unlocked" work/assets/www/wam-map.js
+          ! grep -Fq "locked=id>this.progress.unlocked" work/assets/www/wam-map.js
+          ! grep -Fq "if(id>this.progress.unlocked||this.disposed)" work/assets/www/wam-map.js
+
+          node - <<'NODE'
+          const fs=require('fs'),vm=require('vm');
+          const ctx={window:{},console};vm.createContext(ctx);
+          vm.runInContext(fs.readFileSync('work/assets/www/wam-campaign.js','utf8'),ctx);
+          const C=ctx.window.WamCampaign;
+          if(C.TOTAL!==200)throw new Error('Expected 200 levels');
+          console.log('Campaign total remains',C.TOTAL);
+          NODE
+
+      - name: Set Android version 11.6.1
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('work/apktool.yml')
+          s=p.read_text()
+          s,n=re.subn(r'(?m)^(\s*versionCode:\s*).+$',r'\g<1>116001',s,count=1)
+          s,m=re.subn(r'(?m)^(\s*versionName:\s*).+$',r'\g<1>11.6.1',s,count=1)
+          assert n==m==1
+          p.write_text(s)
+          PY
+
+      - name: Build production APK
+        run: |
+          set -euo pipefail
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'build-tools;35.0.0'
+          java -jar apktool.jar b work -o WamBam-11.6.1-unsigned.apk
+
+      - name: Sign permanently and inspect packaged APK
+        env:
+          WB_KEYSTORE_B64: ${{ secrets.WB_KEYSTORE_B64 }}
+          WB_KEYSTORE_PASSWORD: ${{ secrets.WB_KEYSTORE_PASSWORD }}
+          WB_KEY_ALIAS: ${{ secrets.WB_KEY_ALIAS }}
+          WB_KEY_PASSWORD: ${{ secrets.WB_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          for value in WB_KEYSTORE_B64 WB_KEYSTORE_PASSWORD WB_KEY_ALIAS WB_KEY_PASSWORD; do
+            test -n "${!value:-}" || exit 1
+          done
+
+          printf '%s' "$WB_KEYSTORE_B64" | base64 -d > release.keystore
+          trap 'rm -f release.keystore' EXIT
+
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/zipalign" -f 4 WamBam-11.6.1-unsigned.apk aligned.apk
+
+          "$BT/apksigner" sign             --ks release.keystore             --ks-pass env:WB_KEYSTORE_PASSWORD             --ks-key-alias "$WB_KEY_ALIAS"             --key-pass env:WB_KEY_PASSWORD             --out WamBam_Alpha_11.6.1_All_Levels_Testing_Unlocked.apk             aligned.apk
+
+          "$BT/apksigner" verify --verbose --print-certs WamBam_Alpha_11.6.1_All_Levels_Testing_Unlocked.apk > signature.txt
+          "$BT/apksigner" verify --print-certs base.apk > base-signature.txt
+
+          NEW="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' signature.txt)"
+          BASE="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' base-signature.txt)"
+          test "$NEW" = 'd04c069c47d1642c83243de681e62bfd1a5c996816ab0c7b15dea82a91338ad1'
+          test "$NEW" = "$BASE"
+
+          "$BT/aapt" dump badging WamBam_Alpha_11.6.1_All_Levels_Testing_Unlocked.apk > package.txt
+          grep -q "package: name='com.macca.wambamthankumam' versionCode='116001' versionName='11.6.1'" package.txt
+
+          unzip -p WamBam_Alpha_11.6.1_All_Levels_Testing_Unlocked.apk assets/www/wam-map.js > map-packaged.js
+          cmp -s work/assets/www/wam-map.js map-packaged.js
+          node --check map-packaged.js
+          grep -Fq "locked=false" map-packaged.js
+          grep -Fq "start(id){if(this.disposed)return;" map-packaged.js
+
+          unzip -p WamBam_Alpha_11.6.1_All_Levels_Testing_Unlocked.apk assets/www/wam-campaign.js > campaign-packaged.js
+          cmp -s wam-campaign.js.before campaign-packaged.js
+
+          sha256sum WamBam_Alpha_11.6.1_All_Levels_Testing_Unlocked.apk > SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WamBam-Alpha-11.6.1-Production
+          path: |
+            WamBam_Alpha_11.6.1_All_Levels_Testing_Unlocked.apk
+            SHA256SUMS.txt
+            signature.txt
+            base-signature.txt
+            package.txt
+          retention-days: 30
+
+      - name: Publish Alpha 11.6.1
+        if: github.ref == 'refs/heads/wam-11.6.1'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v11.6.1
+          target_commitish: wam-11.6.1
+          name: Wam Bam Alpha 11.6.1 - Testing Unlock
+          prerelease: true
+          body: |
+            Temporary testing build based directly on signed Alpha 11.6.0.
+
+            Testing change:
+            - All campaign levels 1-200 are selectable and playable from the map and level list.
+            - The normal saved unlock/progression value is not overwritten.
+            - Existing stars, progress, saves and completion data remain intact.
+            - This is a map access override only, so removing the testing override later restores the normal lock rules from the player's saved progress.
+
+            Unchanged:
+            - Level mechanics
+            - Level goals and moves
+            - Board shapes and blockers
+            - Frankie Flash boss battle
+            - New Levels 101-200
+            - New transparent game pieces
+            - Booster inventory
+            - Package identity and permanent signing certificate
+
+            Package: com.macca.wambamthankumam
+            Version: 11.6.1
+            versionCode: 116001
+
+            Build, package, signature and packaged map checks pass in CI. Runtime testing in BlueStacks is still required.
+          files: |
+            WamBam_Alpha_11.6.1_All_Levels_Testing_Unlocked.apk
+            SHA256SUMS.txt
